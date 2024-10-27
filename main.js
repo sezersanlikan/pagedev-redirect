@@ -76,16 +76,29 @@ function updateContent(doc) {
     const featuredImage = doc.querySelector('.featured-image img')?.src || '';
     const pageContent = doc.querySelector('article .entry-content')?.innerHTML || '';
 
-    document.getElementById('page-title').textContent = pageTitle;
-    document.getElementById('page-title').style.visibility = 'visible';
+    const pageTitleElement = document.getElementById('page-title');
+    pageTitleElement.textContent = pageTitle;
+    pageTitleElement.style.visibility = 'visible';
+    pageTitleElement.dataset.href = `${CONFIG.baseUrl}${window.location.pathname}${window.location.search}`;
+
     const imgElement = document.getElementById('featured-image');
     imgElement.src = featuredImage;
     imgElement.alt = pageTitle;
+    imgElement.dataset.href = `${CONFIG.baseUrl}${window.location.pathname}${window.location.search}`;
+
     document.getElementById('page-content').innerHTML = pageContent;
 }
 
 function setupEventListeners() {
-    document.querySelectorAll('a').forEach(link => {
+    const homeLink = document.getElementById('home-link');
+    homeLink.addEventListener('click', function(e) {
+        e.preventDefault();
+        const targetUrl = `${CONFIG.baseUrl}${window.location.search}`;
+        history.pushState(null, '', targetUrl);
+        loadContent();
+    });
+
+    document.querySelectorAll('a:not(#home-link)').forEach(link => {
         link.addEventListener('click', function(e) {
             if (!CONFIG.enableHref) {
                 e.preventDefault();
@@ -108,6 +121,18 @@ function setupEventListeners() {
             history.pushState(null, '', targetUrl);
             loadContent();
         });
+    });
+
+    document.getElementById('page-title').addEventListener('click', function() {
+        if (CONFIG.enableHref) {
+            window.location.href = this.dataset.href;
+        }
+    });
+
+    document.getElementById('featured-image').addEventListener('click', function() {
+        if (CONFIG.enableHref) {
+            window.location.href = this.dataset.href;
+        }
     });
 
     window.addEventListener('popstate', loadContent);
