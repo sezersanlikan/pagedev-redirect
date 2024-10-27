@@ -18,8 +18,26 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.querySelector('meta[property="og:image"]').content = imageUrl;
         }
 
-        // Sayfa başlığını al
-        const pageTitle = doc.querySelector('title').textContent;
+        // Makale başlığını al
+        const articleTitle = doc.querySelector('article .post-header h1.post-title');
+        if (articleTitle) {
+            const titleText = articleTitle.textContent.trim();
+            
+            // Sayfa başlığını güncelle
+            document.title = titleText;
+            
+            // h1 etiketini güncelle
+            const h1Element = document.querySelector('h1');
+            if (h1Element) {
+                h1Element.textContent = titleText;
+            }
+            
+            // og:title meta etiketini güncelle
+            const ogTitleMeta = document.querySelector('meta[property="og:title"]');
+            if (ogTitleMeta) {
+                ogTitleMeta.content = titleText;
+            }
+        }
 
         // og:url meta etiketini güncelle
         const ogUrlMeta = document.querySelector('meta[property="og:url"]');
@@ -36,13 +54,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 link.href = link.href.replace(/https?:\/\/[^/]+/, `https://${pageDev}`);
             }
         });
-
-        // Sayfa başlığını güncelle
-        document.title = pageTitle;
-        const ogTitleMeta = document.querySelector('meta[property="og:title"]');
-        if (ogTitleMeta) {
-            ogTitleMeta.content = pageTitle;
-        }
 
     } catch (error) {
         console.error('İçerik yüklenirken hata oluştu:', error);
