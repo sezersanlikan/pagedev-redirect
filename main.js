@@ -61,14 +61,35 @@ function updateMetadata(doc) {
     const description = doc.querySelector('meta[name="description"]')?.content || '';
     const canonicalUrl = doc.querySelector('link[rel="canonical"]')?.href || window.location.href;
     const ogImage = doc.querySelector('meta[property="og:image"]')?.content || '';
+    const ogImageAlt = doc.querySelector('meta[property="og:image:alt"]')?.content || '';
 
     document.title = title;
     document.querySelector('meta[name="description"]').content = description;
     document.querySelector('link[rel="canonical"]').href = canonicalUrl;
+    
     document.querySelector('meta[property="og:title"]').content = title;
     document.querySelector('meta[property="og:description"]').content = description;
     document.querySelector('meta[property="og:url"]').content = canonicalUrl;
-    document.getElementById('og-image').content = ogImage;
+    
+    const ogImageElement = document.querySelector('meta[property="og:image"]');
+    if (ogImageElement) {
+        ogImageElement.content = ogImage;
+    } else {
+        const newOgImage = document.createElement('meta');
+        newOgImage.setAttribute('property', 'og:image');
+        newOgImage.setAttribute('content', ogImage);
+        document.head.appendChild(newOgImage);
+    }
+
+    const ogImageAltElement = document.querySelector('meta[property="og:image:alt"]');
+    if (ogImageAltElement) {
+        ogImageAltElement.content = ogImageAlt || title;
+    } else {
+        const newOgImageAlt = document.createElement('meta');
+        newOgImageAlt.setAttribute('property', 'og:image:alt');
+        newOgImageAlt.setAttribute('content', ogImageAlt || title);
+        document.head.appendChild(newOgImageAlt);
+    }
 }
 
 function updateContent(doc) {
@@ -87,6 +108,16 @@ function updateContent(doc) {
     imgElement.dataset.href = `${CONFIG.baseUrl}${window.location.pathname}${window.location.search}`;
 
     document.getElementById('page-content').innerHTML = pageContent;
+
+    const ogImageElement = document.querySelector('meta[property="og:image"]');
+    if (ogImageElement) {
+        ogImageElement.content = featuredImage;
+    } else {
+        const newOgImage = document.createElement('meta');
+        newOgImage.setAttribute('property', 'og:image');
+        newOgImage.setAttribute('content', featuredImage);
+        document.head.appendChild(newOgImage);
+    }
 }
 
 function setupEventListeners() {
