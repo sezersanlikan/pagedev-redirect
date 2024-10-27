@@ -35,6 +35,9 @@ async function loadContent() {
 
     const targetUrl = `${CONFIG.desktopUrl}${path}${queryString}`;
 
+    document.getElementById('loading').style.display = 'block';
+    document.querySelector('.wrap').style.display = 'none';
+
     try {
         const response = await fetchWithTimeout(targetUrl, CONFIG.loadingTimeout);
         const html = await response.text();
@@ -45,7 +48,7 @@ async function loadContent() {
         updateContent(doc);
 
         if (CONFIG.showContent) {
-            document.getElementById('content').style.display = 'block';
+            document.querySelector('.wrap').style.display = 'block';
         }
         document.getElementById('loading').style.display = 'none';
 
@@ -76,6 +79,7 @@ function updateContent(doc) {
     const pageContent = doc.querySelector('article .entry-content')?.innerHTML || '';
 
     document.getElementById('page-title').textContent = pageTitle;
+    document.getElementById('page-title').style.visibility = 'visible';
     const imgElement = document.getElementById('featured-image');
     imgElement.src = featuredImage;
     imgElement.alt = pageTitle;
