@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', async () => {
     const path = window.location.pathname.split('/').pop();
     const queryString = window.location.search;
-    const targetUrl = `https://sabancesur.com/${path}${queryString}`;
+    const targetUrl = `https://www.sabancesur.com/${path}${queryString}`; // HTTP yerine HTTPS kullanıyoruz
 
     try {
         const response = await fetch(targetUrl);
