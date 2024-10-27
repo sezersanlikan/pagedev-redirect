@@ -1,7 +1,6 @@
 // Ayarlar
 const CONFIG = {
-    mobileRedirectUrl: 'https://www.sabancesur.com',
-    desktopUrl: 'https://www.sabancesur.com',
+    baseUrl: 'https://www.sabancesur.com',
     showContent: true,
     enableHref: true,
     loadingTimeout: 5000
@@ -27,13 +26,12 @@ async function fetchWithTimeout(url, timeout) {
 async function loadContent() {
     const path = window.location.pathname;
     const queryString = window.location.search;
+    const targetUrl = `${CONFIG.baseUrl}${path}${queryString}`;
 
     if (isMobile()) {
-        window.location.href = `${CONFIG.mobileRedirectUrl}${path}${queryString}`;
+        window.location.href = targetUrl;
         return;
     }
-
-    const targetUrl = `${CONFIG.desktopUrl}${path}${queryString}`;
 
     document.getElementById('loading').style.display = 'block';
     document.querySelector('.wrap').style.display = 'none';
@@ -95,12 +93,18 @@ function setupEventListeners() {
             }
             
             const href = this.getAttribute('href');
-            if (href.startsWith('http') && !href.includes(CONFIG.desktopUrl)) {
+            if (href.startsWith('http') && !href.includes(CONFIG.baseUrl)) {
                 return;
             }
             
             e.preventDefault();
-            const targetUrl = new URL(href, CONFIG.desktopUrl).href;
+            
+            let newPath = href;
+            if (href.startsWith('/')) {
+                newPath = href.slice(1);
+            }
+            const targetUrl = `${CONFIG.baseUrl}/${newPath}${window.location.search}`;
+            
             history.pushState(null, '', targetUrl);
             loadContent();
         });
