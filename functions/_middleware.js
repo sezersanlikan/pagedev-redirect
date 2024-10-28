@@ -101,41 +101,24 @@ export async function onRequest({ request, next }) {
     const response = await next();
     const responseHtml = await response.text();
 
-    // Önce head tag'ini bul
-    const headMatch = responseHtml.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
-    if (!headMatch) {
-      return new Response(responseHtml, {
-        headers: response.headers
-      });
-    }
-
-    const headContent = headMatch[1];
-    const updatedHead = headContent
-      // Önce mevcut og:image tag'lerini temizle
-      .replace(/<meta[^>]*property="og:image"[^>]*>/g, '')
-      .replace(/<meta[^>]*property="og:title"[^>]*>/g, '')
-      .replace(/<meta[^>]*property="og:description"[^>]*>/g, '')
-      .replace(/<meta[^>]*property="og:url"[^>]*>/g, '')
-      .replace(/<meta[^>]*property="og:image:alt"[^>]*>/g, '')
+    // Meta tag'leri direkt olarak ekle
+    const updatedHtml = responseHtml
+      // Önce </title> tag'inden sonra meta tag'leri ekle
+      .replace(
+        /<\/title>/i,
+        `</title>
+        <meta property="og:image" content="${featuredImage}">
+        <meta property="og:title" content="${pageTitle}">
+        <meta property="og:description" content="${pageTitle}">
+        <meta property="og:url" content="${url.origin}${path}">
+        <meta property="og:image:width" content="1200">
+        <meta property="og:image:height" content="630">
+        <meta property="og:image:alt" content="${pageTitle}">
+        <meta name="description" content="${pageTitle}">`
+      )
+      // Eski meta tag'leri temizle
+      .replace(/<meta[^>]*property="og:[^"]*"[^>]*>/g, '')
       .replace(/<meta[^>]*name="description"[^>]*>/g, '');
-
-    // Yeni meta tag'leri ekle
-    const newMetaTags = `
-      <meta property="og:image" content="${featuredImage}">
-      <meta property="og:title" content="${pageTitle}">
-      <meta property="og:description" content="${pageTitle}">
-      <meta property="og:url" content="${url.origin}${path}">
-      <meta property="og:image:width" content="1200">
-      <meta property="og:image:height" content="630">
-      <meta property="og:image:alt" content="${pageTitle}">
-      <meta name="description" content="${pageTitle}">
-    `;
-
-    // Head tag'ini güncelle
-    const updatedHtml = responseHtml.replace(
-      /<head[^>]*>([\s\S]*?)<\/head>/i,
-      `<head>${updatedHead}${newMetaTags}</head>`
-    );
 
     // Featured image'ı güncelle
     const finalHtml = updatedHtml.replace(
@@ -144,6 +127,13 @@ export async function onRequest({ request, next }) {
         <img id="featured-image" src="${featuredImage}" alt="${pageTitle}">
       </a>`
     );
+
+    // Debug için meta tag'leri kontrol et
+    console.log('Meta tags ekleniyor:', {
+      image: featuredImage,
+      title: pageTitle,
+      url: `${url.origin}${path}`
+    });
 
     return new Response(finalHtml, {
       headers: {
