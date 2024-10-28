@@ -35,22 +35,49 @@ export async function onRequest({ request, next }) {
       return next();
     }
 
-    const titleSelectors = [
-      'article .post-header h1.post-title',
-      'h1.entry-title',
-      '.post-title',
-      '.entry-header h1',
-      'h1.title',
-      'h1.post-title',
-      '.article-title',
-      'g1-mega',
-      'h1.single_post_title_main',
-      '.wpb_wrapper h1',
-      '.post-header h1',
-      '.entry-title h1'
-    ];
+    const html = await wpResponse.text();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
 
-    const imageSelectors = [
+    let pageTitle = '';
+    let featuredImage = '';
+
+    // Galeri kontrolü
+    const isGalleryPath = path.split('/').filter(Boolean).length > 1;
+    if (isGalleryPath) {
+      // Galeri başlığını al
+      pageTitle = doc.querySelector('h1.entry-title, .post-title, #galleryContent #image a')?.textContent?.trim() ||
+                 doc.querySelector('#galleryContent #image a')?.getAttribute('title')?.trim();
+
+      // Galeri resmini al
+      const currentImage = doc.querySelector('#galleryContent #image img.attachment-full') || 
+                         doc.querySelector('#galleryContent #image a img');
+      
+      if (currentImage) {
+        featuredImage = currentImage.getAttribute('data-src') || 
+                       currentImage.getAttribute('data-lazy-src') || 
+                       currentImage.getAttribute('srcset')?.split(',')[0]?.split(' ')[0] ||
+                       currentImage.getAttribute('src');
+      }
+    } else {
+      // Normal sayfa için title selectors
+      const titleSelectors = [
+        'h1.post-title',
+        'article .post-header h1.post-title',
+        'h1.entry-title',
+        '.post-title',
+        '.entry-header h1',
+        'h1.title',
+        '.article-title',
+        'g1-mega',
+        'h1.single_post_title_main',
+        '.wpb_wrapper h1',
+        '.post-header h1',
+        '.entry-title h1'
+      ];
+
+      // Normal sayfa için image selectors
+      const imageSelectors = [
         '.thumb .safirthumb .thumbnail .center img',
         '#galleryContent .attachment-full',
         '#galleryContent #image a img',
@@ -70,68 +97,30 @@ export async function onRequest({ request, next }) {
         'img.attachment-full',
         'img.size-full',
         'img.wp-post-image'
-    ];
+      ];
 
-    let featuredImage = '';
-    let pageTitle = '';
-    
-    const rewriter = new HTMLRewriter()
-      .on('h1', {
-        text(text) {
-          if (pageTitle) return;
-          
-          const element = text.element;
-          const className = element.getAttribute('class') || '';
-          
-          for (const selector of titleSelectors) {
-            if (selector.includes(className) || selector.includes('h1')) {
-              pageTitle = text.text.trim();
-              break;
-            }
-          }
+      // Title'ı bul
+      for (const selector of titleSelectors) {
+        const titleElement = doc.querySelector(selector);
+        if (titleElement) {
+          pageTitle = titleElement.textContent.trim();
+          break;
         }
-      })
-      .on('meta[property="og:title"]', {
-        element(element) {
-          if (!pageTitle) {
-            pageTitle = element.getAttribute('content')?.trim();
-          }
-        }
-      })
-      .on('meta[property="og:image"]', {
-        element(element) {
-          if (!featuredImage) {
-            const content = element.getAttribute('content');
-            if (content && !content.includes('noimage') && !content.includes('blank.gif')) {
-              featuredImage = content;
-            }
-          }
-        }
-      })
-      .on('title', {
-        text(text) {
-          if (!pageTitle) {
-            pageTitle = text.text.trim();
-          }
-        }
-      });
+      }
 
-    await rewriter.transform(wpResponse).text();
-    
-    // Eğer hala featuredImage bulunamadıysa, HTML içinde arama yap
-    if (!featuredImage) {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(await rewriter.transform(wpResponse).text(), 'text/html');
-      
+      // Featured image'ı bul
       for (const selector of imageSelectors) {
-        const img = doc.querySelector(selector);
-        if (img) {
-          const src = img.getAttribute('data-src') || 
-                     img.getAttribute('data-lazy-src') || 
-                     img.getAttribute('srcset')?.split(',')[0]?.split(' ')[0] ||
-                     img.getAttribute('src');
+        const imgElement = doc.querySelector(selector);
+        if (imgElement) {
+          const src = imgElement.getAttribute('data-src') || 
+                     imgElement.getAttribute('data-lazy-src') || 
+                     imgElement.getAttribute('data-original') || 
+                     imgElement.getAttribute('src');
           
-          if (src && !src.includes('noimage') && !src.includes('blank.gif')) {
+          if (src && 
+              !src.includes('noimage.svg') &&
+              !src.includes('data:image') && 
+              !src.includes('blank.gif')) {
             featuredImage = src;
             break;
           }
@@ -139,12 +128,14 @@ export async function onRequest({ request, next }) {
       }
     }
 
+    // Fallback değerleri
     pageTitle = pageTitle || CONFIG.defaultTitle;
     featuredImage = featuredImage || CONFIG.defaultImage;
 
     const response = await next();
     const responseHtml = await response.text();
 
+    // Meta tag'leri güncelle
     const updatedHtml = responseHtml
       .replace(/<title>[^<]*<\/title>/, `<title>${pageTitle}</title>`)
       .replace(
