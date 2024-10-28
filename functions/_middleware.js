@@ -73,22 +73,24 @@ export async function onRequest({ request, next }) {
 
     const rewriter = new HTMLRewriter()
       .on('h1', {
-        text(text) {
+        element(element) {
           if (pageTitle) return;
-          
-          const element = text.element;
-          const classes = element.getAttribute('class') || '';
-          
-          for (const selector of titleSelectors) {
-            if (selector.includes('.') && classes.includes(selector.split('.')[1])) {
-              pageTitle = text.text.trim();
-              break;
+          let text = '';
+          element.onText(chunk => {
+            text += chunk.text;
+          });
+          element.onEndTag(() => {
+            if (!pageTitle && text) {
+              const classes = element.getAttribute('class') || '';
+              for (const selector of titleSelectors) {
+                if ((selector.includes('.') && classes.includes(selector.split('.')[1])) ||
+                    (selector.includes('h1') && !selector.includes('.'))) {
+                  pageTitle = text.trim();
+                  break;
+                }
+              }
             }
-            if (selector.includes('h1') && !selector.includes('.')) {
-              pageTitle = text.text.trim();
-              break;
-            }
-          }
+          });
         }
       })
       .on('img', {
@@ -96,13 +98,15 @@ export async function onRequest({ request, next }) {
           if (featuredImage) return;
           
           const classes = element.getAttribute('class') || '';
+          const src = element.getAttribute('src') || element.getAttribute('data-src');
+          const srcset = element.getAttribute('srcset');
+          
+          if (!src) return;
           
           for (const selector of imageSelectors) {
             if ((selector.includes('img.') && classes.includes(selector.split('img.')[1])) ||
-                (selector.includes('.') && classes.includes(selector.split('.')[1]))) {
-              
-              const src = element.getAttribute('src') || element.getAttribute('data-src');
-              const srcset = element.getAttribute('srcset');
+                (selector.includes('.') && classes.includes(selector.split('.')[1])) ||
+                selector.includes('img')) {
               
               if (src && 
                   !src.includes('data:image') && 
@@ -133,16 +137,22 @@ export async function onRequest({ request, next }) {
 
     const transformedResponse = await rewriter.transform(wpResponse).text();
 
+    // Eğer title bulunamadıysa
     if (!pageTitle) {
-      const rewriter2 = new HTMLRewriter()
-        .on('.post-title, .entry-title, .article-title', {
-          text(text) {
-            if (!pageTitle) {
-              pageTitle = text.text.trim();
-            }
-          }
-        });
-      await rewriter2.transform(wpResponse.clone()).text();
+      const htmlContent = await wpResponse.clone().text();
+      const titleMatch = htmlContent.match(/<title[^>]*>(.*?)<\/title>/i);
+      if (titleMatch && titleMatch[1]) {
+        pageTitle = titleMatch[1].trim();
+      }
+    }
+
+    // Eğer image bulunamadıysa
+    if (!featuredImage) {
+      const htmlContent = await wpResponse.clone().text();
+      const imgMatch = htmlContent.match(/<meta[^>]*property="og:image"[^>]*content="([^"]*)"[^>]*>/i);
+      if (imgMatch && imgMatch[1]) {
+        featuredImage = imgMatch[1];
+      }
     }
 
     pageTitle = pageTitle || CONFIG.defaultTitle;
