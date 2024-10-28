@@ -5,14 +5,10 @@
     "/assets/*",
     "/_astro/*",
     "/images/*",
-    "/*.ico",
-    "/*.svg",
-    "/*.png",
-    "/*.jpg",
-    "/*.jpeg",
-    "/*.gif",
+    "/favicon.*",
     "/*.css",
-    "/*.js",
-    "/favicon.*"
+    "/main.js",
+    "/config.js",
+    "/style.css"
   ]
 }

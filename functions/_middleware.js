@@ -1,3 +1,5 @@
+import { CONFIG } from '../config.js';
+
 export async function onRequest({ request, next }) {
   try {
     const url = new URL(request.url);
@@ -52,8 +54,6 @@ export async function onRequest({ request, next }) {
       'img.size-full',
       'img.wp-post-image'
     ];
-
-    const rewriter = new HTMLRewriter();
 
     titleSelectors.forEach(selector => {
       rewriter.on(selector, {
