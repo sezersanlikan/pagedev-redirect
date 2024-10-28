@@ -101,48 +101,51 @@ export async function onRequest({ request, next }) {
     const response = await next();
     const responseHtml = await response.text();
 
-    // Meta tag'lerini güncelle
-    const updatedHtml = responseHtml
-      .replace(
-        /<meta[^>]*property="og:image"[^>]*>/g,
-        `<meta property="og:image" content="${featuredImage}">`
-      )
-      .replace(
-        /<meta[^>]*property="og:title"[^>]*>/g,
-        `<meta property="og:title" content="${pageTitle}">`
-      )
-      .replace(
-        /<meta[^>]*property="og:description"[^>]*>/,
-        `<meta property="og:description" content="${pageTitle}">`
-      )
-      .replace(
-        /<meta[^>]*property="og:image:width"[^>]*>/,
-        `<meta property="og:image:width" content="1200">`
-      )
-      .replace(
-        /<meta[^>]*property="og:image:height"[^>]*>/,
-        `<meta property="og:image:height" content="630">`
-      )
-      .replace(
-        /<meta[^>]*property="og:url"[^>]*>/,
-        `<meta property="og:url" content="${url.origin}${path}">`
-      )
-      .replace(
-        /<meta[^>]*property="og:image:alt"[^>]*>/,
-        `<meta property="og:image:alt" content="${pageTitle}">`
-      )
-      .replace(
-        /<meta[^>]*name="description"[^>]*>/,
-        `<meta name="description" content="${pageTitle}">`
-      )
-      .replace(
-        /<img[^>]*id="featured-image"[^>]*>/,
-        `<a href="${CONFIG.baseUrl}${path}${url.search}">
-          <img id="featured-image" src="${featuredImage}" alt="${pageTitle}">
-        </a>`
-      );
+    // Önce head tag'ini bul
+    const headMatch = responseHtml.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
+    if (!headMatch) {
+      return new Response(responseHtml, {
+        headers: response.headers
+      });
+    }
 
-    return new Response(updatedHtml, {
+    const headContent = headMatch[1];
+    const updatedHead = headContent
+      // Önce mevcut og:image tag'lerini temizle
+      .replace(/<meta[^>]*property="og:image"[^>]*>/g, '')
+      .replace(/<meta[^>]*property="og:title"[^>]*>/g, '')
+      .replace(/<meta[^>]*property="og:description"[^>]*>/g, '')
+      .replace(/<meta[^>]*property="og:url"[^>]*>/g, '')
+      .replace(/<meta[^>]*property="og:image:alt"[^>]*>/g, '')
+      .replace(/<meta[^>]*name="description"[^>]*>/g, '');
+
+    // Yeni meta tag'leri ekle
+    const newMetaTags = `
+      <meta property="og:image" content="${featuredImage}">
+      <meta property="og:title" content="${pageTitle}">
+      <meta property="og:description" content="${pageTitle}">
+      <meta property="og:url" content="${url.origin}${path}">
+      <meta property="og:image:width" content="1200">
+      <meta property="og:image:height" content="630">
+      <meta property="og:image:alt" content="${pageTitle}">
+      <meta name="description" content="${pageTitle}">
+    `;
+
+    // Head tag'ini güncelle
+    const updatedHtml = responseHtml.replace(
+      /<head[^>]*>([\s\S]*?)<\/head>/i,
+      `<head>${updatedHead}${newMetaTags}</head>`
+    );
+
+    // Featured image'ı güncelle
+    const finalHtml = updatedHtml.replace(
+      /<img[^>]*id="featured-image"[^>]*>/,
+      `<a href="${CONFIG.baseUrl}${path}${url.search}">
+        <img id="featured-image" src="${featuredImage}" alt="${pageTitle}">
+      </a>`
+    );
+
+    return new Response(finalHtml, {
       headers: {
         'content-type': 'text/html;charset=UTF-8',
         'cache-control': 'public, max-age=3600',
