@@ -1,5 +1,5 @@
 export const CONFIG = {
-    baseUrl: 'https://www.sabancesur.com',
+    baseUrl: 'https://www.africantrendystyles.com',
     showContent: true,
     enableHref: true,
     loadingTimeout: 5000,

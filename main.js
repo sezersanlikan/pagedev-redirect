@@ -103,10 +103,12 @@ function updateContent(doc) {
     ];
 
     const imageSelectors = [
+        '.thumb .safirthumb .thumbnail .center img',
         '#galleryContent #image img',
         '#galleryContent .attachment-full',
         '.featured-image img',
         '.thumbnail img',
+        '.thumbnail .center img',
         '.post-feature-media-wrapper img',
         '.g1-frame img',
         '.image-post-thumb img',
@@ -117,7 +119,7 @@ function updateContent(doc) {
         '.wpb_wrapper img:first-of-type',
         'img.attachment-full',
         'img.size-full',
-        'img.wp-post-image'
+        'img.wp-post-image',
     ];
 
     let pageTitle = '';

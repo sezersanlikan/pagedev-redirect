@@ -51,6 +51,7 @@ export async function onRequest({ request, next }) {
     ];
 
     const imageSelectors = [
+     '.thumb .safirthumb .thumbnail .center img',
       '#galleryContent #image img',
       '#galleryContent .attachment-full',
       '.featured-image img',
@@ -138,7 +139,6 @@ export async function onRequest({ request, next }) {
         }
       });
 
-    // HTML'i tek seferde transform et
     await rewriter.transform(wpResponse).text();
 
     pageTitle = pageTitle || CONFIG.defaultTitle;
@@ -180,6 +180,12 @@ export async function onRequest({ request, next }) {
       .replace(
         /<meta[^>]*name="description"[^>]*>/,
         `<meta name="description" content="${pageTitle}">`
+      )
+      .replace(
+        /<img[^>]*id="featured-image"[^>]*>/,
+        `<a href="${CONFIG.baseUrl}${path}${url.search}">
+          <img id="featured-image" src="${featuredImage}" alt="${pageTitle}">
+        </a>`
       );
 
     return new Response(updatedHtml, {
