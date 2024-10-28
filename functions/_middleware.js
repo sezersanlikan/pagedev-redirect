@@ -36,81 +36,50 @@ export async function onRequest({ request, next }) {
     }
 
     const sourceHtml = await wpResponse.text();
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(sourceHtml, 'text/html');
-
-    const titleSelectors = [
-      'article .post-header h1.post-title',
-      'h1.entry-title',
-      '.post-title',
-      '.entry-header h1',
-      'h1.title',
-      'h1.post-title',
-      '.article-title',
-      'g1-mega',
-      'h1.single_post_title_main',
-      '.wpb_wrapper h1',
-      '.post-header h1',
-      '.entry-title h1'
-    ];
-
-    const imageSelectors = [
-      '#galleryContent #image img',
-      '#galleryContent .attachment-full',
-      '.featured-image img',
-      '.thumbnail img',
-      '.post-feature-media-wrapper img',
-      '.g1-frame img',
-      '.image-post-thumb img',
-      'article img.wp-post-image',
-      '.entry-content img:first-of-type',
-      '.center img',
-      '.g1-frame-inner img',
-      '.wpb_wrapper img:first-of-type',
-      'img.attachment-full',
-      'img.size-full',
-      'img.wp-post-image'
-    ];
-
+    
     let pageTitle = '';
     for (const selector of titleSelectors) {
-      const titleElement = doc.querySelector(selector);
-      if (titleElement) {
-        pageTitle = titleElement.textContent.trim();
-        break;
-      }
+        const regex = new RegExp(`<${selector.replace(/\./g, ' class="')}[^>]*>([^<]+)<`, 'i');
+        const match = sourceHtml.match(regex);
+        if (match) {
+            pageTitle = match[1].trim();
+            break;
+        }
     }
 
     let featuredImage = '';
     for (const selector of imageSelectors) {
-      const imgElement = doc.querySelector(selector);
-      if (imgElement) {
-        const src = imgElement.getAttribute('src') || imgElement.getAttribute('data-src');
-        
-        if (src && 
-            !src.includes('data:image') && 
-            !src.includes('blank.gif') &&
-            (src.includes('.jpg') || 
-             src.includes('.jpeg') || 
-             src.includes('.png') || 
-             src.includes('.webp'))) {
-          
-          const srcset = imgElement.getAttribute('srcset');
-          if (srcset) {
-            const sources = srcset.split(',')
-              .map(s => {
-                const [url, width] = s.trim().split(' ');
-                return { url, width: parseInt(width) || 0 };
-              })
-              .sort((a, b) => b.width - a.width);
-            
-            featuredImage = sources[0]?.url || src;
-          } else {
-            featuredImage = src;
-          }
-          break;
+        const regex = new RegExp(`<img[^>]*${selector.replace(/\./g, ' class="')}[^>]*src="([^"]+)"`, 'i');
+        const match = sourceHtml.match(regex);
+        if (match) {
+            const src = match[1];
+            if (src && 
+                !src.includes('data:image') && 
+                !src.includes('blank.gif') &&
+                (src.includes('.jpg') || 
+                 src.includes('.jpeg') || 
+                 src.includes('.png') || 
+                 src.includes('.webp'))) {
+                
+                const srcsetRegex = new RegExp(`<img[^>]*${selector.replace(/\./g, ' class="")}[^>]*srcset="([^"]+)"`, 'i');
+                const srcsetMatch = sourceHtml.match(srcsetRegex);
+                
+                if (srcsetMatch) {
+                    const srcset = srcsetMatch[1];
+                    const sources = srcset.split(',')
+                        .map(s => {
+                            const [url, width] = s.trim().split(' ');
+                            return { url, width: parseInt(width) || 0 };
+                        })
+                        .sort((a, b) => b.width - a.width);
+                    
+                    featuredImage = sources[0]?.url || src;
+                } else {
+                    featuredImage = src;
+                }
+                break;
+            }
         }
-      }
     }
 
     pageTitle = pageTitle || CONFIG.defaultTitle;
