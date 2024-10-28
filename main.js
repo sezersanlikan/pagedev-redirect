@@ -93,9 +93,9 @@ function updateMetadata(doc) {
 }
 
 function updateContent(doc) {
-    const pageTitle = doc.querySelector('#page-title')?.textContent.trim() || '';
-    const featuredImage = doc.querySelector('#featured-image')?.src || '';
-    const pageContent = doc.querySelector('#page-content')?.innerHTML || '';
+    const pageTitle = doc.querySelector('article .post-header h1.post-title')?.textContent.trim() || '';
+    const featuredImage = doc.querySelector('.featured-image img')?.src || '';
+    const pageContent = doc.querySelector('article .entry-content')?.innerHTML || '';
 
     const pageTitleElement = document.getElementById('page-title');
     pageTitleElement.textContent = pageTitle;
