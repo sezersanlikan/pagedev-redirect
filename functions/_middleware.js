@@ -5,8 +5,6 @@ export async function onRequest({ request, next }) {
     const url = new URL(request.url);
     let path = url.pathname;
     
-    const targetUrl = `${CONFIG.baseUrl}${path}${url.search}`;
-
     const userAgent = request.headers.get('user-agent') || '';
     if (userAgent.toLowerCase().includes('bot') || 
         userAgent.toLowerCase().includes('crawler')) {
@@ -24,6 +22,8 @@ export async function onRequest({ request, next }) {
       path = `${path}/`;
     }
 
+    const targetUrl = `${CONFIG.baseUrl}${path}${url.search}`;
+
     const wpResponse = await fetch(targetUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; Cloudflare Workers)'
@@ -35,107 +35,142 @@ export async function onRequest({ request, next }) {
       return next();
     }
 
-    const html = await wpResponse.text();
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'text/html');
+    const titleSelectors = [
+      'article .post-header h1.post-title',
+      'h1.entry-title',
+      '.post-title',
+      '.entry-header h1',
+      'h1.title',
+      'h1.post-title',
+      '.article-title',
+      'g1-mega',
+      'h1.single_post_title_main',
+      '.wpb_wrapper h1',
+      '.post-header h1',
+      '.entry-title h1'
+    ];
+
+    const imageSelectors = [
+      '.thumb .safirthumb .thumbnail .center img',
+      '.thumbnail .center img',
+      '.center img',
+      '.thumb img',
+      '.safirthumb img',
+      '.thumbnail img',
+      'article img.wp-post-image',
+      '.featured-image img',
+      '.post-feature-media-wrapper img',
+      '.entry-content img:first-of-type',
+      '#galleryContent #image img',
+      '#galleryContent .attachment-full',
+      '.g1-frame img',
+      '.g1-frame-inner img',
+      '.image-post-thumb img',
+      '.wpb_wrapper img:first-of-type',
+      'img.attachment-full',
+      'img.size-full',
+      'img.wp-post-image'
+    ];
 
     let pageTitle = '';
     let featuredImage = '';
 
-    // Galeri kontrolü
-    const isGalleryPath = path.split('/').filter(Boolean).length > 1;
-    if (isGalleryPath) {
-      // Galeri başlığını al
-      pageTitle = doc.querySelector('h1.entry-title, .post-title, #galleryContent #image a')?.textContent?.trim() ||
-                 doc.querySelector('#galleryContent #image a')?.getAttribute('title')?.trim();
-
-      // Galeri resmini al
-      const currentImage = doc.querySelector('#galleryContent #image img.attachment-full') || 
-                         doc.querySelector('#galleryContent #image a img');
-      
-      if (currentImage) {
-        featuredImage = currentImage.getAttribute('data-src') || 
-                       currentImage.getAttribute('data-lazy-src') || 
-                       currentImage.getAttribute('srcset')?.split(',')[0]?.split(' ')[0] ||
-                       currentImage.getAttribute('src');
-      }
-    } else {
-      // Normal sayfa için title selectors
-      const titleSelectors = [
-        'h1.post-title',
-        'article .post-header h1.post-title',
-        'h1.entry-title',
-        '.post-title',
-        '.entry-header h1',
-        'h1.title',
-        '.article-title',
-        'g1-mega',
-        'h1.single_post_title_main',
-        '.wpb_wrapper h1',
-        '.post-header h1',
-        '.entry-title h1'
-      ];
-
-      // Normal sayfa için image selectors
-      const imageSelectors = [
-        '.thumb .safirthumb .thumbnail .center img',
-        '#galleryContent .attachment-full',
-        '#galleryContent #image a img',
-        '.center img',
-        '.thumb img',
-        '.safirthumb img',
-        '.thumbnail img',
-        'article img.wp-post-image',
-        '.featured-image img',
-        '.thumbnail .center img',
-        '.post-feature-media-wrapper img',
-        '.entry-content img:first-of-type',
-        '.g1-frame img',
-        '.g1-frame-inner img',
-        '.image-post-thumb img',
-        '.wpb_wrapper img:first-of-type',
-        'img.attachment-full',
-        'img.size-full',
-        'img.wp-post-image'
-      ];
-
-      // Title'ı bul
-      for (const selector of titleSelectors) {
-        const titleElement = doc.querySelector(selector);
-        if (titleElement) {
-          pageTitle = titleElement.textContent.trim();
-          break;
-        }
-      }
-
-      // Featured image'ı bul
-      for (const selector of imageSelectors) {
-        const imgElement = doc.querySelector(selector);
-        if (imgElement) {
-          const src = imgElement.getAttribute('data-src') || 
-                     imgElement.getAttribute('data-lazy-src') || 
-                     imgElement.getAttribute('data-original') || 
-                     imgElement.getAttribute('src');
+    const rewriter = new HTMLRewriter()
+      .on('h1', {
+        text(text) {
+          if (pageTitle) return;
           
-          if (src && 
-              !src.includes('noimage.svg') &&
-              !src.includes('data:image') && 
-              !src.includes('blank.gif')) {
-            featuredImage = src;
-            break;
+          const element = text.element;
+          const className = element.getAttribute('class') || '';
+          
+          for (const selector of titleSelectors) {
+            if (selector.includes(className) || selector.includes('h1')) {
+              pageTitle = text.text.trim();
+              break;
+            }
           }
         }
-      }
-    }
+      })
+      .on('img', {
+        element(element) {
+          if (featuredImage) return;
+          
+          const className = element.getAttribute('class') || '';
+          const src = element.getAttribute('data-src') || 
+                     element.getAttribute('data-lazy-src') || 
+                     element.getAttribute('data-original') || 
+                     element.getAttribute('src');
+          
+          if (!src || 
+              src.includes('noimage.svg') ||
+              src.includes('data:image') || 
+              src.includes('blank.gif')) {
+            return;
+          }
 
-    // Fallback değerleri
+          for (const selector of imageSelectors) {
+            try {
+              // Selector'u parçalara ayır ve her birini kontrol et
+              const parts = selector.split(' ');
+              let isMatch = true;
+              let currentElement = element;
+
+              for (let i = parts.length - 1; i >= 0; i--) {
+                const part = parts[i];
+                if (!currentElement) {
+                  isMatch = false;
+                  break;
+                }
+
+                const elementClass = currentElement.getAttribute('class') || '';
+                const elementTag = currentElement.tagName?.toLowerCase() || '';
+
+                if (part.startsWith('.') && !elementClass.includes(part.slice(1))) {
+                  isMatch = false;
+                  break;
+                }
+
+                if (!part.startsWith('.') && elementTag !== part) {
+                  isMatch = false;
+                  break;
+                }
+
+                currentElement = currentElement.parentElement;
+              }
+
+              if (isMatch) {
+                featuredImage = src;
+                break;
+              }
+            } catch (error) {
+              continue;
+            }
+          }
+        }
+      })
+      .on('meta[property="og:image"]', {
+        element(element) {
+          if (!featuredImage) {
+            featuredImage = element.getAttribute('content');
+          }
+        }
+      })
+      .on('title', {
+        text(text) {
+          if (!pageTitle) {
+            pageTitle = text.text.trim();
+          }
+        }
+      });
+
+    await rewriter.transform(wpResponse).text();
+
     pageTitle = pageTitle || CONFIG.defaultTitle;
     featuredImage = featuredImage || CONFIG.defaultImage;
 
     const response = await next();
     const responseHtml = await response.text();
 
-    // Meta tag'leri güncelle
     const updatedHtml = responseHtml
       .replace(/<title>[^<]*<\/title>/, `<title>${pageTitle}</title>`)
       .replace(
