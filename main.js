@@ -1,10 +1,4 @@
-// Ayarlar
-const CONFIG = {
-    baseUrl: 'https://www.sabancesur.com',
-    showContent: true,
-    enableHref: true,
-    loadingTimeout: 5000
-};
+import { CONFIG } from './config.js';
 
 function isMobile() {
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -93,9 +87,86 @@ function updateMetadata(doc) {
 }
 
 function updateContent(doc) {
-    const pageTitle = doc.querySelector('article .post-header h1.post-title')?.textContent.trim() || '';
-    const featuredImage = doc.querySelector('.featured-image img')?.src || '';
-    const pageContent = doc.querySelector('article .entry-content')?.innerHTML || '';
+    const titleSelectors = [
+        'article .post-header h1.post-title',
+        'h1.entry-title',
+        '.post-title',
+        '.entry-header h1',
+        'h1.title',
+        'h1.post-title',
+        '.article-title',
+        'g1-mega',
+        'h1.single_post_title_main',
+        '.wpb_wrapper h1',
+        '.post-header h1',
+        '.entry-title h1'
+    ];
+
+    const imageSelectors = [
+        '#galleryContent #image img',
+        '#galleryContent .attachment-full',
+        '.featured-image img',
+        '.thumbnail img',
+        '.post-feature-media-wrapper img',
+        '.g1-frame img',
+        '.image-post-thumb img',
+        'article img.wp-post-image',
+        '.entry-content img:first-of-type',
+        '.center img',
+        '.g1-frame-inner img',
+        '.wpb_wrapper img:first-of-type',
+        'img.attachment-full',
+        'img.size-full',
+        'img.wp-post-image'
+    ];
+
+    let pageTitle = '';
+    for (const selector of titleSelectors) {
+        const titleElement = doc.querySelector(selector);
+        if (titleElement) {
+            pageTitle = titleElement.textContent.trim();
+            break;
+        }
+    }
+
+    let featuredImage = '';
+    for (const selector of imageSelectors) {
+        const imgElement = doc.querySelector(selector);
+        if (imgElement) {
+            const src = imgElement.getAttribute('src') || imgElement.getAttribute('data-src');
+            
+            if (src && 
+                !src.includes('data:image') && 
+                !src.includes('blank.gif') &&
+                (src.includes('.jpg') || 
+                 src.includes('.jpeg') || 
+                 src.includes('.png') || 
+                 src.includes('.webp'))) {
+                
+                const srcset = imgElement.getAttribute('srcset');
+                if (srcset) {
+                    const sources = srcset.split(',');
+                    const largestImage = sources
+                        .map(s => {
+                            const [url, width] = s.trim().split(' ');
+                            return {
+                                url,
+                                width: parseInt(width) || 0
+                            };
+                        })
+                        .sort((a, b) => b.width - a.width)[0];
+                    
+                    featuredImage = largestImage ? largestImage.url : src;
+                } else {
+                    featuredImage = src;
+                }
+                break;
+            }
+        }
+    }
+
+    pageTitle = pageTitle || CONFIG.defaultTitle;
+    featuredImage = featuredImage || CONFIG.defaultImage;
 
     const pageTitleElement = document.getElementById('page-title');
     pageTitleElement.textContent = pageTitle;
@@ -107,15 +178,12 @@ function updateContent(doc) {
     imgElement.alt = pageTitle;
     imgElement.dataset.href = `${CONFIG.baseUrl}${window.location.pathname}${window.location.search}`;
 
-    document.getElementById('page-content').innerHTML = pageContent;
-
-    // Meta etiketlerini güncelle
     updateMetaTag('og:image', featuredImage);
     updateMetaTag('og:title', pageTitle);
-    updateMetaTag('og:description', pageContent.substring(0, 160));
+    updateMetaTag('og:description', pageTitle);
+    updateMetaTag('og:image:alt', pageTitle);
 }
 
-// Yardımcı fonksiyon
 function updateMetaTag(property, content) {
     let element = document.querySelector(`meta[property="${property}"]`);
     if (element) {

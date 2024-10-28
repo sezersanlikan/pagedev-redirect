@@ -4,54 +4,112 @@ export async function onRequest({ request, next }) {
     let path = url.pathname;
     const queryString = url.search;
 
-    // URL sonunda / yoksa ekle (redirect'i önlemek için)
     if (!path.endsWith('/') && !path.includes('.')) {
       path = `${path}/`;
     }
 
-    const targetUrl = `https://www.sabancesur.com${path}${queryString}`;
+    const targetUrl = `${CONFIG.baseUrl}${path}${queryString}`;
 
     let pageTitle = '';
-    let pageContent = '';
     let featuredImage = '';
 
-    // WordPress'ten içeriği çek
     const wpResponse = await fetch(targetUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; Cloudflare Workers)'
       },
-      redirect: 'follow' // redirectleri otomatik takip et
+      redirect: 'follow'
     });
 
-    // HTML'i parse et
-    const rewriter = new HTMLRewriter()
-      .on('article .post-header h1.post-title', {
+    const titleSelectors = [
+      'article .post-header h1.post-title',
+      'h1.entry-title',
+      '.post-title',
+      '.entry-header h1',
+      'h1.title',
+      'h1.post-title',
+      '.article-title',
+      'g1-mega',
+      'h1.single_post_title_main',
+      '.wpb_wrapper h1',
+      '.post-header h1',
+      '.entry-title h1'
+    ];
+
+    const imageSelectors = [
+      '#galleryContent #image img',
+      '#galleryContent .attachment-full',
+      '.featured-image img',
+      '.thumbnail img',
+      '.post-feature-media-wrapper img',
+      '.g1-frame img',
+      '.image-post-thumb img',
+      'article img.wp-post-image',
+      '.entry-content img:first-of-type',
+      '.center img',
+      '.g1-frame-inner img',
+      '.wpb_wrapper img:first-of-type',
+      'img.attachment-full',
+      'img.size-full',
+      'img.wp-post-image'
+    ];
+
+    const rewriter = new HTMLRewriter();
+
+    titleSelectors.forEach(selector => {
+      rewriter.on(selector, {
         text(text) {
-          pageTitle += text.text;
-        }
-      })
-      .on('.featured-image img', {
-        element(element) {
-          const src = element.getAttribute('src');
-          if (src) featuredImage = src;
-        }
-      })
-      .on('article .entry-content', {
-        text(text) {
-          pageContent += text.text;
+          if (!pageTitle) {
+            pageTitle += text.text;
+          }
         }
       });
+    });
+
+    imageSelectors.forEach(selector => {
+      rewriter.on(selector, {
+        element(element) {
+          if (!featuredImage) {
+            const src = element.getAttribute('src') || element.getAttribute('data-src');
+            
+            if (src && 
+                !src.includes('data:image') && 
+                !src.includes('blank.gif') &&
+                (src.includes('.jpg') || 
+                 src.includes('.jpeg') || 
+                 src.includes('.png') || 
+                 src.includes('.webp'))) {
+              
+              const srcset = element.getAttribute('srcset');
+              if (srcset) {
+                const sources = srcset.split(',');
+                const largestImage = sources
+                  .map(s => {
+                    const [url, width] = s.trim().split(' ');
+                    return {
+                      url,
+                      width: parseInt(width) || 0
+                    };
+                  })
+                  .sort((a, b) => b.width - a.width)[0];
+                
+                featuredImage = largestImage ? largestImage.url : src;
+              } else {
+                featuredImage = src;
+              }
+            }
+          }
+        }
+      });
+    });
 
     const transformedResponse = rewriter.transform(wpResponse);
     await transformedResponse.text();
 
-    // Varsayılan değerleri kontrol et
-    pageTitle = pageTitle.trim() || 'Saban Cesur';
-    pageContent = pageContent.trim();
-    const pageDescription = pageContent.substring(0, 160) || 'Saban Cesur';
-    featuredImage = featuredImage || 'https://www.sabancesur.com/wp-content/uploads/IMG_4431-752x440-1.jpeg';
+    pageTitle = pageTitle.trim() || CONFIG.defaultTitle;
+    featuredImage = featuredImage || CONFIG.defaultImage;
 
-    // Debug için
+    const pageDescription = pageTitle;
+
     console.log({
       pageTitle,
       pageDescription,
@@ -59,11 +117,9 @@ export async function onRequest({ request, next }) {
       targetUrl
     });
 
-    // Orijinal yanıtı al
     const response = await next();
     const html = await response.text();
 
-    // Meta etiketlerini güncelle
     const updatedHtml = html
       .replace(
         /<title>[^<]*<\/title>/,
