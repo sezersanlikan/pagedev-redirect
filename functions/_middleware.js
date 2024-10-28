@@ -84,11 +84,26 @@ export async function onRequest({ request, next }) {
             if (selector.includes(classes) || 
                 selector.includes(element.tagName) || 
                 selector.includes(parentClasses)) {
-              element.onText(text => {
-                if (!pageTitle) pageTitle = text.text.trim();
-              });
+              
+              // text içeriğini almak için text handler ekleyelim
+              element.text = '';
+              element.onText = (text) => {
+                element.text = (element.text || '') + text.text;
+              };
+              
+              element.onEndTag = () => {
+                if (!pageTitle && element.text) {
+                  pageTitle = element.text.trim();
+                }
+              };
+              
               break;
             }
+          }
+        },
+        text(text) {
+          if (!pageTitle && text.element?.text !== undefined) {
+            text.element.text = (text.element.text || '') + text.text;
           }
         }
       })
