@@ -73,56 +73,37 @@ export async function onRequest({ request, next }) {
 
     const rewriter = new HTMLRewriter()
       .on('h1', {
-        element(element) {
+        text(text) {
           if (pageTitle) return;
           
+          const element = text.element;
           const classes = element.getAttribute('class') || '';
-          const parentClasses = element.getAttribute('parent-classes') || '';
           
-          // title seçicilerini kontrol et
           for (const selector of titleSelectors) {
-            if (selector.includes(classes) || 
-                selector.includes(element.tagName) || 
-                selector.includes(parentClasses)) {
-              
-              // text içeriğini almak için text handler ekleyelim
-              element.text = '';
-              element.onText = (text) => {
-                element.text = (element.text || '') + text.text;
-              };
-              
-              element.onEndTag = () => {
-                if (!pageTitle && element.text) {
-                  pageTitle = element.text.trim();
-                }
-              };
-              
+            if (selector.includes('.') && classes.includes(selector.split('.')[1])) {
+              pageTitle = text.text.trim();
               break;
             }
-          }
-        },
-        text(text) {
-          if (!pageTitle && text.element?.text !== undefined) {
-            text.element.text = (text.element.text || '') + text.text;
+            if (selector.includes('h1') && !selector.includes('.')) {
+              pageTitle = text.text.trim();
+              break;
+            }
           }
         }
       })
       .on('img', {
         element(element) {
           if (featuredImage) return;
-
-          const classes = element.getAttribute('class') || '';
-          const parentClasses = element.getAttribute('parent-classes') || '';
           
-          // image seçicilerini kontrol et
+          const classes = element.getAttribute('class') || '';
+          
           for (const selector of imageSelectors) {
-            if (selector.includes(classes) || 
-                selector.includes('img') || 
-                selector.includes(parentClasses)) {
+            if ((selector.includes('img.') && classes.includes(selector.split('img.')[1])) ||
+                (selector.includes('.') && classes.includes(selector.split('.')[1]))) {
               
               const src = element.getAttribute('src') || element.getAttribute('data-src');
               const srcset = element.getAttribute('srcset');
-
+              
               if (src && 
                   !src.includes('data:image') && 
                   !src.includes('blank.gif') &&
@@ -143,14 +124,26 @@ export async function onRequest({ request, next }) {
                 } else {
                   featuredImage = src;
                 }
+                break;
               }
-              break;
             }
           }
         }
       });
 
     const transformedResponse = await rewriter.transform(wpResponse).text();
+
+    if (!pageTitle) {
+      const rewriter2 = new HTMLRewriter()
+        .on('.post-title, .entry-title, .article-title', {
+          text(text) {
+            if (!pageTitle) {
+              pageTitle = text.text.trim();
+            }
+          }
+        });
+      await rewriter2.transform(wpResponse.clone()).text();
+    }
 
     pageTitle = pageTitle || CONFIG.defaultTitle;
     featuredImage = featuredImage || CONFIG.defaultImage;
