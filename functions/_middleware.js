@@ -71,87 +71,60 @@ export async function onRequest({ request, next }) {
     let pageTitle = '';
     let featuredImage = '';
 
-    const rewriter = new HTMLRewriter()
-      .on('h1', {
-        element(element) {
-          if (pageTitle) return;
-          let text = '';
-          element.onText(chunk => {
-            text += chunk.text;
-          });
-          element.onEndTag(() => {
-            if (!pageTitle && text) {
-              const classes = element.getAttribute('class') || '';
-              for (const selector of titleSelectors) {
-                if ((selector.includes('.') && classes.includes(selector.split('.')[1])) ||
-                    (selector.includes('h1') && !selector.includes('.'))) {
-                  pageTitle = text.trim();
-                  break;
-                }
-              }
-            }
-          });
-        }
-      })
-      .on('img', {
-        element(element) {
-          if (featuredImage) return;
-          
-          const classes = element.getAttribute('class') || '';
-          const src = element.getAttribute('src') || element.getAttribute('data-src');
-          const srcset = element.getAttribute('srcset');
-          
-          if (!src) return;
-          
-          for (const selector of imageSelectors) {
-            if ((selector.includes('img.') && classes.includes(selector.split('img.')[1])) ||
-                (selector.includes('.') && classes.includes(selector.split('.')[1])) ||
-                selector.includes('img')) {
-              
-              if (src && 
-                  !src.includes('data:image') && 
-                  !src.includes('blank.gif') &&
-                  (src.includes('.jpg') || 
-                   src.includes('.jpeg') || 
-                   src.includes('.png') || 
-                   src.includes('.webp'))) {
-                
-                if (srcset) {
-                  const sources = srcset.split(',')
-                    .map(s => {
-                      const [url, width] = s.trim().split(' ');
-                      return { url, width: parseInt(width) || 0 };
-                    })
-                    .sort((a, b) => b.width - a.width);
-                  
-                  featuredImage = sources[0]?.url || src;
-                } else {
-                  featuredImage = src;
-                }
-                break;
-              }
-            }
-          }
-        }
-      });
+    const sourceHtml = await wpResponse.text();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(sourceHtml, 'text/html');
 
-    const transformedResponse = await rewriter.transform(wpResponse).text();
-
-    // Eğer title bulunamadıysa
-    if (!pageTitle) {
-      const htmlContent = await wpResponse.clone().text();
-      const titleMatch = htmlContent.match(/<title[^>]*>(.*?)<\/title>/i);
-      if (titleMatch && titleMatch[1]) {
-        pageTitle = titleMatch[1].trim();
+    for (const selector of titleSelectors) {
+      const titleElement = doc.querySelector(selector);
+      if (titleElement) {
+        pageTitle = titleElement.textContent.trim();
+        break;
       }
     }
 
-    // Eğer image bulunamadıysa
+    for (const selector of imageSelectors) {
+      const imgElement = doc.querySelector(selector);
+      if (imgElement) {
+        const src = imgElement.getAttribute('src') || imgElement.getAttribute('data-src');
+        
+        if (src && 
+            !src.includes('data:image') && 
+            !src.includes('blank.gif') &&
+            (src.includes('.jpg') || 
+             src.includes('.jpeg') || 
+             src.includes('.png') || 
+             src.includes('.webp'))) {
+            
+          const srcset = imgElement.getAttribute('srcset');
+          if (srcset) {
+            const sources = srcset.split(',')
+              .map(s => {
+                const [url, width] = s.trim().split(' ');
+                return { url, width: parseInt(width) || 0 };
+              })
+              .sort((a, b) => b.width - a.width);
+            
+            featuredImage = sources[0]?.url || src;
+          } else {
+            featuredImage = src;
+          }
+          break;
+        }
+      }
+    }
+
+    if (!pageTitle) {
+      const titleElement = doc.querySelector('title');
+      if (titleElement) {
+        pageTitle = titleElement.textContent.trim();
+      }
+    }
+
     if (!featuredImage) {
-      const htmlContent = await wpResponse.clone().text();
-      const imgMatch = htmlContent.match(/<meta[^>]*property="og:image"[^>]*content="([^"]*)"[^>]*>/i);
-      if (imgMatch && imgMatch[1]) {
-        featuredImage = imgMatch[1];
+      const ogImage = doc.querySelector('meta[property="og:image"]');
+      if (ogImage) {
+        featuredImage = ogImage.getAttribute('content');
       }
     }
 
