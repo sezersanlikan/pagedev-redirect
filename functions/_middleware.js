@@ -1,5 +1,4 @@
 import { CONFIG } from '../config.js';
-import { HTMLRewriter } from 'https://unpkg.com/@cloudflare/wrangler@1.0.0/dist/html-rewriter.js';
 
 export async function onRequest({ request, next }) {
   try {
