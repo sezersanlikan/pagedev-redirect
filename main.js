@@ -135,17 +135,25 @@ function updateContent(doc) {
     for (const selector of imageSelectors) {
         const imgElement = doc.querySelector(selector);
         if (imgElement) {
-            const src = imgElement.getAttribute('src') || imgElement.getAttribute('data-src');
+            const src = imgElement.getAttribute('data-src') || 
+                       imgElement.getAttribute('data-lazy-src') || 
+                       imgElement.getAttribute('data-original') || 
+                       imgElement.getAttribute('src');
             
             if (src && 
+                !src.includes('noimage') &&
                 !src.includes('data:image') && 
                 !src.includes('blank.gif') &&
+                !src.includes('lazy') &&
                 (src.includes('.jpg') || 
                  src.includes('.jpeg') || 
                  src.includes('.png') || 
                  src.includes('.webp'))) {
                 
-                const srcset = imgElement.getAttribute('srcset');
+                const srcset = imgElement.getAttribute('data-srcset') || 
+                              imgElement.getAttribute('data-lazy-srcset') || 
+                              imgElement.getAttribute('srcset');
+                              
                 if (srcset) {
                     const sources = srcset.split(',');
                     const largestImage = sources

@@ -93,22 +93,26 @@ export async function onRequest({ request, next }) {
           if (featuredImage) return;
           
           const className = element.getAttribute('class') || '';
-          const src = element.getAttribute('src');
-          const dataSrc = element.getAttribute('data-src');
-          const srcset = element.getAttribute('srcset');
+          const src = element.getAttribute('data-src') || 
+                     element.getAttribute('data-lazy-src') || 
+                     element.getAttribute('data-original') || 
+                     element.getAttribute('src');
+          
+          const srcset = element.getAttribute('data-srcset') || 
+                        element.getAttribute('data-lazy-srcset') || 
+                        element.getAttribute('srcset');
           
           for (const selector of imageSelectors) {
             if (selector.includes(className) || selector.includes('img')) {
-              let imageUrl = dataSrc || src;
-              
-              if (imageUrl && 
-                  !imageUrl.includes('noimage') &&
-                  !imageUrl.includes('data:image') && 
-                  !imageUrl.includes('blank.gif') &&
-                  (imageUrl.includes('.jpg') || 
-                   imageUrl.includes('.jpeg') || 
-                   imageUrl.includes('.png') || 
-                   imageUrl.includes('.webp'))) {
+              if (src && 
+                  !src.includes('noimage') &&
+                  !src.includes('data:image') && 
+                  !src.includes('blank.gif') &&
+                  !src.includes('lazy') &&
+                  (src.includes('.jpg') || 
+                   src.includes('.jpeg') || 
+                   src.includes('.png') || 
+                   src.includes('.webp'))) {
                 
                 if (srcset) {
                   const sources = srcset.split(',')
@@ -118,9 +122,9 @@ export async function onRequest({ request, next }) {
                     })
                     .sort((a, b) => b.width - a.width);
                   
-                  featuredImage = sources[0]?.url || imageUrl;
+                  featuredImage = sources[0]?.url || src;
                 } else {
-                  featuredImage = imageUrl;
+                  featuredImage = src;
                 }
                 break;
               }
