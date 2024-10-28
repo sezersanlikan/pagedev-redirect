@@ -5332,3 +5332,12 @@ select {
 .SignInButton:hover {
     background-image: linear-gradient(to bottom,#4f46e5,#4338ca)
 }
+
+#featured-image {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
+    object-fit: contain;
+    max-height: 500px;
+}
