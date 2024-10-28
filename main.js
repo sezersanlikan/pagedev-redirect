@@ -21,14 +21,7 @@ async function loadContent() {
     const path = window.location.pathname;
     const queryString = window.location.search;
     
-    const isGalleryPath = path.split('/').filter(Boolean).length > 1;
-    
-    let targetPath = path;
-    if (isGalleryPath) {
-        targetPath = `/${path.split('/')[1]}/`;
-    }
-    
-    const targetUrl = `${CONFIG.baseUrl}${targetPath}${queryString}`;
+    const targetUrl = `${CONFIG.baseUrl}${path}${queryString}`;
 
     if (isMobile()) {
         window.location.href = targetUrl;
@@ -46,11 +39,15 @@ async function loadContent() {
 
         updateMetadata(doc);
         
+        const isGalleryPath = path.split('/').filter(Boolean).length > 1;
         if (isGalleryPath) {
-            const galleryImages = doc.querySelectorAll('.gallery-image img, .gallery img, article .entry-content img');
+            const galleryImages = doc.querySelectorAll('#galleryContent #image a img, .entry-content img, article img, .gallery img');
             const currentImage = Array.from(galleryImages).find(img => {
-                const imgPath = new URL(img.src).pathname;
-                return imgPath.includes(path.split('/').pop());
+                const src = img.getAttribute('data-src') || 
+                           img.getAttribute('data-lazy-src') || 
+                           img.getAttribute('data-original') || 
+                           img.getAttribute('src');
+                return src && src.includes(path.split('/').pop());
             });
             
             if (currentImage) {

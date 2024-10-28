@@ -5,11 +5,7 @@ export async function onRequest({ request, next }) {
     const url = new URL(request.url);
     let path = url.pathname;
     
-    const isGalleryPath = path.split('/').filter(Boolean).length > 1;
-    
-    if (isGalleryPath) {
-      path = `/${path.split('/')[1]}/`;
-    }
+    const targetUrl = `${CONFIG.baseUrl}${path}${url.search}`;
 
     const userAgent = request.headers.get('user-agent') || '';
     if (userAgent.toLowerCase().includes('bot') || 
@@ -27,8 +23,6 @@ export async function onRequest({ request, next }) {
     if (!path.endsWith('/') && !path.includes('.')) {
       path = `${path}/`;
     }
-
-    const targetUrl = `${CONFIG.baseUrl}${path}${url.search}`;
 
     const wpResponse = await fetch(targetUrl, {
       headers: {
@@ -101,7 +95,6 @@ export async function onRequest({ request, next }) {
         element(element) {
           if (featuredImage) return;
           
-          const className = element.getAttribute('class') || '';
           const src = element.getAttribute('data-src') || 
                      element.getAttribute('data-lazy-src') || 
                      element.getAttribute('data-original') || 
@@ -114,46 +107,48 @@ export async function onRequest({ request, next }) {
             return;
           }
 
+          const isGalleryPath = url.pathname.split('/').filter(Boolean).length > 1;
           if (isGalleryPath) {
-            featuredImage = src;
-            return;
-          }
+            if (src.includes(url.pathname.split('/').pop())) {
+              featuredImage = src;
+            }
+          } else {
+            for (const selector of imageSelectors) {
+              try {
+                const parts = selector.split(' ');
+                let isMatch = true;
+                let currentElement = element;
 
-          for (const selector of imageSelectors) {
-            try {
-              const parts = selector.split(' ');
-              let isMatch = true;
-              let currentElement = element;
+                for (let i = parts.length - 1; i >= 0; i--) {
+                  const part = parts[i];
+                  if (!currentElement) {
+                    isMatch = false;
+                    break;
+                  }
 
-              for (let i = parts.length - 1; i >= 0; i--) {
-                const part = parts[i];
-                if (!currentElement) {
-                  isMatch = false;
-                  break;
+                  const elementClass = currentElement.getAttribute('class') || '';
+                  const elementTag = currentElement.tagName?.toLowerCase() || '';
+
+                  if (part.startsWith('.') && !elementClass.includes(part.slice(1))) {
+                    isMatch = false;
+                    break;
+                  }
+
+                  if (!part.startsWith('.') && elementTag !== part) {
+                    isMatch = false;
+                    break;
+                  }
+
+                  currentElement = currentElement.parentElement;
                 }
 
-                const elementClass = currentElement.getAttribute('class') || '';
-                const elementTag = currentElement.tagName?.toLowerCase() || '';
-
-                if (part.startsWith('.') && !elementClass.includes(part.slice(1))) {
-                  isMatch = false;
+                if (isMatch) {
+                  featuredImage = src;
                   break;
                 }
-
-                if (!part.startsWith('.') && elementTag !== part) {
-                  isMatch = false;
-                  break;
-                }
-
-                currentElement = currentElement.parentElement;
+              } catch (error) {
+                continue;
               }
-
-              if (isMatch) {
-                featuredImage = src;
-                break;
-              }
-            } catch (error) {
-              continue;
             }
           }
         }
