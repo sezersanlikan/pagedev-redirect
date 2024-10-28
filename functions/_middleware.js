@@ -5,6 +5,12 @@ export async function onRequest({ request, next }) {
     const url = new URL(request.url);
     let path = url.pathname;
     
+    const isGalleryPath = path.split('/').filter(Boolean).length > 1;
+    
+    if (isGalleryPath) {
+      path = `/${path.split('/')[1]}/`;
+    }
+
     const userAgent = request.headers.get('user-agent') || '';
     if (userAgent.toLowerCase().includes('bot') || 
         userAgent.toLowerCase().includes('crawler')) {
@@ -51,27 +57,34 @@ export async function onRequest({ request, next }) {
     ];
 
     const imageSelectors = [
-    '.thumb .safirthumb .thumbnail .center img',
+      '.thumb .safirthumb .thumbnail .center img',
+      '.thumbnail .center img',
+      '.center img',
+      '.thumb img',
+      '.safirthumb img',
+      '.thumbnail img',
+      'article img.wp-post-image',
+      '.featured-image img',
+      '.post-feature-media-wrapper img',
+      '.entry-content img:first-of-type',
       '#galleryContent #image img',
       '#galleryContent .attachment-full',
-      '.featured-image img',
-      '.thumbnail img',
-      '.post-feature-media-wrapper img',
       '.g1-frame img',
-      '.image-post-thumb img',
-      'article img.wp-post-image',
-      '.entry-content img:first-of-type',
-      '.center img',
       '.g1-frame-inner img',
+      '.image-post-thumb img',
       '.wpb_wrapper img:first-of-type',
       'img.attachment-full',
       'img.size-full',
-      'img.wp-post-image'
+      'img.wp-post-image',
+      '.gallery-image img',
+      '.gallery img',
+      '.wp-block-gallery img',
+      'article .entry-content img'
     ];
 
-    let pageTitle = '';
     let featuredImage = '';
-
+    let pageTitle = '';
+    
     const rewriter = new HTMLRewriter()
       .on('h1', {
         text(text) {
@@ -98,36 +111,53 @@ export async function onRequest({ request, next }) {
                      element.getAttribute('data-original') || 
                      element.getAttribute('src');
           
-          const srcset = element.getAttribute('data-srcset') || 
-                        element.getAttribute('data-lazy-srcset') || 
-                        element.getAttribute('srcset');
-          
+          if (!src || 
+              src.includes('noimage.svg') ||
+              src.includes('data:image') || 
+              src.includes('blank.gif')) {
+            return;
+          }
+
+          if (isGalleryPath) {
+            featuredImage = src;
+            return;
+          }
+
           for (const selector of imageSelectors) {
-            if (selector.includes(className) || selector.includes('img')) {
-              if (src && 
-                  !src.includes('noimage') &&
-                  !src.includes('data:image') && 
-                  !src.includes('blank.gif') &&
-                  !src.includes('lazy') &&
-                  (src.includes('.jpg') || 
-                   src.includes('.jpeg') || 
-                   src.includes('.png') || 
-                   src.includes('.webp'))) {
-                
-                if (srcset) {
-                  const sources = srcset.split(',')
-                    .map(s => {
-                      const [url, width] = s.trim().split(' ');
-                      return { url, width: parseInt(width) || 0 };
-                    })
-                    .sort((a, b) => b.width - a.width);
-                  
-                  featuredImage = sources[0]?.url || src;
-                } else {
-                  featuredImage = src;
+            try {
+              const parts = selector.split(' ');
+              let isMatch = true;
+              let currentElement = element;
+
+              for (let i = parts.length - 1; i >= 0; i--) {
+                const part = parts[i];
+                if (!currentElement) {
+                  isMatch = false;
+                  break;
                 }
+
+                const elementClass = currentElement.getAttribute('class') || '';
+                const elementTag = currentElement.tagName?.toLowerCase() || '';
+
+                if (part.startsWith('.') && !elementClass.includes(part.slice(1))) {
+                  isMatch = false;
+                  break;
+                }
+
+                if (!part.startsWith('.') && elementTag !== part) {
+                  isMatch = false;
+                  break;
+                }
+
+                currentElement = currentElement.parentElement;
+              }
+
+              if (isMatch) {
+                featuredImage = src;
                 break;
               }
+            } catch (error) {
+              continue;
             }
           }
         }

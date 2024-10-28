@@ -20,7 +20,15 @@ async function fetchWithTimeout(url, timeout) {
 async function loadContent() {
     const path = window.location.pathname;
     const queryString = window.location.search;
-    const targetUrl = `${CONFIG.baseUrl}${path}${queryString}`;
+    
+    const isGalleryPath = path.split('/').filter(Boolean).length > 1;
+    
+    let targetPath = path;
+    if (isGalleryPath) {
+        targetPath = `/${path.split('/')[1]}/`;
+    }
+    
+    const targetUrl = `${CONFIG.baseUrl}${targetPath}${queryString}`;
 
     if (isMobile()) {
         window.location.href = targetUrl;
@@ -37,7 +45,25 @@ async function loadContent() {
         const doc = parser.parseFromString(html, 'text/html');
 
         updateMetadata(doc);
-        updateContent(doc);
+        
+        if (isGalleryPath) {
+            const galleryImages = doc.querySelectorAll('.gallery-image img, .gallery img, article .entry-content img');
+            const currentImage = Array.from(galleryImages).find(img => {
+                const imgPath = new URL(img.src).pathname;
+                return imgPath.includes(path.split('/').pop());
+            });
+            
+            if (currentImage) {
+                const src = currentImage.getAttribute('data-src') || 
+                           currentImage.getAttribute('data-lazy-src') || 
+                           currentImage.getAttribute('data-original') || 
+                           currentImage.getAttribute('src');
+                           
+                document.getElementById('featured-image').src = src;
+            }
+        } else {
+            updateContent(doc);
+        }
 
         if (CONFIG.showContent) {
             document.querySelector('.wrap').style.display = 'block';
@@ -104,22 +130,24 @@ function updateContent(doc) {
 
     const imageSelectors = [
         '.thumb .safirthumb .thumbnail .center img',
+        '.thumbnail .center img',
+        '.center img',
+        '.thumb img',
+        '.safirthumb img',
+        '.thumbnail img',
+        'article img.wp-post-image',
+        '.featured-image img',
+        '.post-feature-media-wrapper img',
+        '.entry-content img:first-of-type',
         '#galleryContent #image img',
         '#galleryContent .attachment-full',
-        '.featured-image img',
-        '.thumbnail img',
-        '.thumbnail .center img',
-        '.post-feature-media-wrapper img',
         '.g1-frame img',
-        '.image-post-thumb img',
-        'article img.wp-post-image',
-        '.entry-content img:first-of-type',
-        '.center img',
         '.g1-frame-inner img',
+        '.image-post-thumb img',
         '.wpb_wrapper img:first-of-type',
         'img.attachment-full',
         'img.size-full',
-        'img.wp-post-image',
+        'img.wp-post-image'
     ];
 
     let pageTitle = '';
@@ -141,35 +169,11 @@ function updateContent(doc) {
                        imgElement.getAttribute('src');
             
             if (src && 
-                !src.includes('noimage') &&
+                !src.includes('noimage.svg') &&
                 !src.includes('data:image') && 
-                !src.includes('blank.gif') &&
-                !src.includes('lazy') &&
-                (src.includes('.jpg') || 
-                 src.includes('.jpeg') || 
-                 src.includes('.png') || 
-                 src.includes('.webp'))) {
+                !src.includes('blank.gif')) {
                 
-                const srcset = imgElement.getAttribute('data-srcset') || 
-                              imgElement.getAttribute('data-lazy-srcset') || 
-                              imgElement.getAttribute('srcset');
-                              
-                if (srcset) {
-                    const sources = srcset.split(',');
-                    const largestImage = sources
-                        .map(s => {
-                            const [url, width] = s.trim().split(' ');
-                            return {
-                                url,
-                                width: parseInt(width) || 0
-                            };
-                        })
-                        .sort((a, b) => b.width - a.width)[0];
-                    
-                    featuredImage = largestImage ? largestImage.url : src;
-                } else {
-                    featuredImage = src;
-                }
+                featuredImage = src;
                 break;
             }
         }
