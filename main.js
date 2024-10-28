@@ -41,22 +41,33 @@ async function loadContent() {
         
         const isGalleryPath = path.split('/').filter(Boolean).length > 1;
         if (isGalleryPath) {
-            const galleryImages = doc.querySelectorAll('#galleryContent #image a img, .entry-content img, article img, .gallery img');
-            const currentImage = Array.from(galleryImages).find(img => {
-                const src = img.getAttribute('data-src') || 
-                           img.getAttribute('data-lazy-src') || 
-                           img.getAttribute('data-original') || 
-                           img.getAttribute('src');
-                return src && src.includes(path.split('/').pop());
-            });
+            // Galeri başlığını al
+            const galleryTitle = doc.querySelector('h1.entry-title, .post-title, #galleryContent #image a')?.textContent?.trim() ||
+                               doc.querySelector('#galleryContent #image a')?.getAttribute('title')?.trim();
+            
+            if (galleryTitle) {
+                const pageTitleElement = document.getElementById('page-title');
+                pageTitleElement.textContent = galleryTitle;
+                pageTitleElement.style.visibility = 'visible';
+                pageTitleElement.dataset.href = targetUrl;
+            }
+
+            // Galeri resmini al
+            const currentImage = doc.querySelector('#galleryContent #image img.attachment-full') || 
+                               doc.querySelector('#galleryContent #image a img');
             
             if (currentImage) {
                 const src = currentImage.getAttribute('data-src') || 
                            currentImage.getAttribute('data-lazy-src') || 
-                           currentImage.getAttribute('data-original') || 
+                           currentImage.getAttribute('srcset')?.split(',')[0]?.split(' ')[0] ||
                            currentImage.getAttribute('src');
                            
-                document.getElementById('featured-image').src = src;
+                if (src) {
+                    const imgElement = document.getElementById('featured-image');
+                    imgElement.src = src;
+                    imgElement.alt = galleryTitle || '';
+                    imgElement.dataset.href = targetUrl;
+                }
             }
         } else {
             updateContent(doc);
@@ -111,12 +122,12 @@ function updateMetadata(doc) {
 
 function updateContent(doc) {
     const titleSelectors = [
+        'h1.post-title',
         'article .post-header h1.post-title',
         'h1.entry-title',
         '.post-title',
         '.entry-header h1',
         'h1.title',
-        'h1.post-title',
         '.article-title',
         'g1-mega',
         'h1.single_post_title_main',

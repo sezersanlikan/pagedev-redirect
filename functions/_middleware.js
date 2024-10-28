@@ -95,9 +95,10 @@ export async function onRequest({ request, next }) {
         element(element) {
           if (featuredImage) return;
           
+          const className = element.getAttribute('class') || '';
           const src = element.getAttribute('data-src') || 
                      element.getAttribute('data-lazy-src') || 
-                     element.getAttribute('data-original') || 
+                     element.getAttribute('srcset')?.split(',')[0]?.split(' ')[0] ||
                      element.getAttribute('src');
           
           if (!src || 
@@ -108,48 +109,54 @@ export async function onRequest({ request, next }) {
           }
 
           const isGalleryPath = url.pathname.split('/').filter(Boolean).length > 1;
-          if (isGalleryPath) {
-            if (src.includes(url.pathname.split('/').pop())) {
-              featuredImage = src;
-            }
-          } else {
-            for (const selector of imageSelectors) {
-              try {
-                const parts = selector.split(' ');
-                let isMatch = true;
-                let currentElement = element;
+          if (isGalleryPath && element.getAttribute('class')?.includes('attachment-full')) {
+            featuredImage = src;
+            return;
+          }
 
-                for (let i = parts.length - 1; i >= 0; i--) {
-                  const part = parts[i];
-                  if (!currentElement) {
-                    isMatch = false;
-                    break;
-                  }
+          for (const selector of imageSelectors) {
+            try {
+              const parts = selector.split(' ');
+              let isMatch = true;
+              let currentElement = element;
 
-                  const elementClass = currentElement.getAttribute('class') || '';
-                  const elementTag = currentElement.tagName?.toLowerCase() || '';
-
-                  if (part.startsWith('.') && !elementClass.includes(part.slice(1))) {
-                    isMatch = false;
-                    break;
-                  }
-
-                  if (!part.startsWith('.') && elementTag !== part) {
-                    isMatch = false;
-                    break;
-                  }
-
-                  currentElement = currentElement.parentElement;
-                }
-
-                if (isMatch) {
-                  featuredImage = src;
+              for (let i = parts.length - 1; i >= 0; i--) {
+                const part = parts[i];
+                if (!currentElement) {
+                  isMatch = false;
                   break;
                 }
-              } catch (error) {
-                continue;
+
+                const elementClass = currentElement.getAttribute('class') || '';
+                const elementTag = currentElement.tagName?.toLowerCase() || '';
+
+                if (part.startsWith('.') && !elementClass.includes(part.slice(1))) {
+                  isMatch = false;
+                  break;
+                }
+
+                if (!part.startsWith('.') && elementTag !== part) {
+                  isMatch = false;
+                  break;
+                }
+
+                currentElement = currentElement.parentElement;
               }
+
+              if (isMatch) {
+                featuredImage = src;
+                break;
+              }
+            } catch (error) {
+              continue;
             }
+          }
+        }
+      })
+      .on('#galleryContent #image a', {
+        element(element) {
+          if (!pageTitle) {
+            pageTitle = element.getAttribute('title')?.trim();
           }
         }
       })
