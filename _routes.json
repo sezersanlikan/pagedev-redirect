@@ -1,14 +1,27 @@
 {
   "version": 1,
-  "include": ["/*"],
+  "include": [
+    "/*",
+    "/",
+    "/*/",
+    "/*/*/"
+  ],
   "exclude": [
     "/assets/*",
     "/_astro/*",
     "/images/*",
-    "/favicon.*",
+    "/wp-content/*",
+    "/wp-includes/*",
+    "/*.ico",
+    "/*.svg",
+    "/*.png",
+    "/*.jpg",
+    "/*.jpeg",
+    "/*.gif",
     "/*.css",
-    "/main.js",
-    "/config.js",
-    "/style.css"
+    "/*.js",
+    "/favicon.*",
+    "/robots.txt",
+    "/sitemap*.xml"
   ]
 }

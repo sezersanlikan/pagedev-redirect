@@ -4,16 +4,25 @@ export async function onRequest({ request, next }) {
   try {
     const url = new URL(request.url);
     let path = url.pathname;
-    const queryString = url.search;
+    
+    const userAgent = request.headers.get('user-agent') || '';
+    if (userAgent.toLowerCase().includes('bot') || 
+        userAgent.toLowerCase().includes('crawler')) {
+      return next();
+    }
+
+    if (path.match(/\.(js|css|jpg|jpeg|png|gif|ico|webp|xml|txt)$/) ||
+        path.includes('/wp-') ||
+        path.includes('/assets/') ||
+        path.includes('/images/')) {
+      return next();
+    }
 
     if (!path.endsWith('/') && !path.includes('.')) {
       path = `${path}/`;
     }
 
-    const targetUrl = `${CONFIG.baseUrl}${path}${queryString}`;
-
-    let pageTitle = '';
-    let featuredImage = '';
+    const targetUrl = `${CONFIG.baseUrl}${path}${url.search}`;
 
     const wpResponse = await fetch(targetUrl, {
       headers: {
@@ -21,6 +30,14 @@ export async function onRequest({ request, next }) {
       },
       redirect: 'follow'
     });
+
+    if (!wpResponse.ok) {
+      return next();
+    }
+
+    const sourceHtml = await wpResponse.text();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(sourceHtml, 'text/html');
 
     const titleSelectors = [
       'article .post-header h1.post-title',
@@ -55,83 +72,62 @@ export async function onRequest({ request, next }) {
       'img.wp-post-image'
     ];
 
-    titleSelectors.forEach(selector => {
-      rewriter.on(selector, {
-        text(text) {
-          if (!pageTitle) {
-            pageTitle += text.text;
-          }
-        }
-      });
-    });
+    let pageTitle = '';
+    for (const selector of titleSelectors) {
+      const titleElement = doc.querySelector(selector);
+      if (titleElement) {
+        pageTitle = titleElement.textContent.trim();
+        break;
+      }
+    }
 
-    imageSelectors.forEach(selector => {
-      rewriter.on(selector, {
-        element(element) {
-          if (!featuredImage) {
-            const src = element.getAttribute('src') || element.getAttribute('data-src');
+    let featuredImage = '';
+    for (const selector of imageSelectors) {
+      const imgElement = doc.querySelector(selector);
+      if (imgElement) {
+        const src = imgElement.getAttribute('src') || imgElement.getAttribute('data-src');
+        
+        if (src && 
+            !src.includes('data:image') && 
+            !src.includes('blank.gif') &&
+            (src.includes('.jpg') || 
+             src.includes('.jpeg') || 
+             src.includes('.png') || 
+             src.includes('.webp'))) {
+          
+          const srcset = imgElement.getAttribute('srcset');
+          if (srcset) {
+            const sources = srcset.split(',')
+              .map(s => {
+                const [url, width] = s.trim().split(' ');
+                return { url, width: parseInt(width) || 0 };
+              })
+              .sort((a, b) => b.width - a.width);
             
-            if (src && 
-                !src.includes('data:image') && 
-                !src.includes('blank.gif') &&
-                (src.includes('.jpg') || 
-                 src.includes('.jpeg') || 
-                 src.includes('.png') || 
-                 src.includes('.webp'))) {
-              
-              const srcset = element.getAttribute('srcset');
-              if (srcset) {
-                const sources = srcset.split(',');
-                const largestImage = sources
-                  .map(s => {
-                    const [url, width] = s.trim().split(' ');
-                    return {
-                      url,
-                      width: parseInt(width) || 0
-                    };
-                  })
-                  .sort((a, b) => b.width - a.width)[0];
-                
-                featuredImage = largestImage ? largestImage.url : src;
-              } else {
-                featuredImage = src;
-              }
-            }
+            featuredImage = sources[0]?.url || src;
+          } else {
+            featuredImage = src;
           }
+          break;
         }
-      });
-    });
+      }
+    }
 
-    const transformedResponse = rewriter.transform(wpResponse);
-    await transformedResponse.text();
-
-    pageTitle = pageTitle.trim() || CONFIG.defaultTitle;
+    pageTitle = pageTitle || CONFIG.defaultTitle;
     featuredImage = featuredImage || CONFIG.defaultImage;
 
-    const pageDescription = pageTitle;
-
-    console.log({
-      pageTitle,
-      pageDescription,
-      featuredImage,
-      targetUrl
-    });
-
     const response = await next();
-    const html = await response.text();
+    const responseHtml = await response.text();
 
-    const updatedHtml = html
-      .replace(
-        /<title>[^<]*<\/title>/,
-        `<title>${pageTitle}</title>`
-      )
+    const updatedHtml = responseHtml
+      .replace(/<title>[^<]*<\/title>/, `<title>${pageTitle}</title>`)
       .replace(
         /<meta[^>]*property="og:title"[^>]*>/,
         `<meta property="og:title" content="${pageTitle}">`
       )
       .replace(
         /<meta[^>]*property="og:description"[^>]*>/,
-        `<meta property="og:description" content="${pageDescription}">`
+        `<meta property="og:description" content="${pageTitle}">`
       )
       .replace(
         /<meta[^>]*property="og:image"[^>]*>/,
@@ -155,16 +151,14 @@ export async function onRequest({ request, next }) {
       )
       .replace(
         /<meta[^>]*name="description"[^>]*>/,
-        `<meta name="description" content="${pageDescription}">`
+        `<meta name="description" content="${pageTitle}">`
       );
 
     return new Response(updatedHtml, {
       headers: {
         'content-type': 'text/html;charset=UTF-8',
         'cache-control': 'public, max-age=3600',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, HEAD, POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Origin': '*'
       },
     });
 
