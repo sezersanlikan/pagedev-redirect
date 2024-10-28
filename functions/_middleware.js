@@ -91,69 +91,6 @@ export async function onRequest({ request, next }) {
           }
         }
       })
-      .on('img', {
-        element(element) {
-          if (featuredImage) return;
-          
-          const src = element.getAttribute('data-src') || 
-                     element.getAttribute('data-lazy-src') || 
-                     element.getAttribute('srcset')?.split(',')[0]?.split(' ')[0] ||
-                     element.getAttribute('src');
-          
-          if (!src || 
-              src.includes('noimage.svg') ||
-              src.includes('data:image') || 
-              src.includes('blank.gif')) {
-            return;
-          }
-
-          const isGalleryPath = url.pathname.split('/').filter(Boolean).length > 1;
-          
-          // Normal sayfalar için image selector kontrolü
-          for (const selector of imageSelectors) {
-            try {
-              const parts = selector.split(' ');
-              let isMatch = true;
-              let currentElement = element;
-
-              for (let i = parts.length - 1; i >= 0; i--) {
-                const part = parts[i];
-                if (!currentElement) {
-                  isMatch = false;
-                  break;
-                }
-
-                const elementClass = currentElement.getAttribute('class') || '';
-                const elementTag = currentElement.tagName?.toLowerCase() || '';
-
-                if (part.startsWith('.') && !elementClass.includes(part.slice(1))) {
-                  isMatch = false;
-                  break;
-                }
-
-                if (!part.startsWith('.') && elementTag !== part) {
-                  isMatch = false;
-                  break;
-                }
-
-                currentElement = currentElement.parentElement;
-              }
-
-              if (isMatch) {
-                featuredImage = src;
-                return;
-              }
-            } catch (error) {
-              continue;
-            }
-          }
-
-          // Eğer hala featuredImage bulunamadıysa ve galeri sayfası ise
-          if (!featuredImage && isGalleryPath && element.getAttribute('class')?.includes('attachment-full')) {
-            featuredImage = src;
-          }
-        }
-      })
       .on('meta[property="og:title"]', {
         element(element) {
           if (!pageTitle) {
@@ -164,7 +101,10 @@ export async function onRequest({ request, next }) {
       .on('meta[property="og:image"]', {
         element(element) {
           if (!featuredImage) {
-            featuredImage = element.getAttribute('content');
+            const content = element.getAttribute('content');
+            if (content && !content.includes('noimage') && !content.includes('blank.gif')) {
+              featuredImage = content;
+            }
           }
         }
       })
@@ -177,6 +117,27 @@ export async function onRequest({ request, next }) {
       });
 
     await rewriter.transform(wpResponse).text();
+    
+    // Eğer hala featuredImage bulunamadıysa, HTML içinde arama yap
+    if (!featuredImage) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(await rewriter.transform(wpResponse).text(), 'text/html');
+      
+      for (const selector of imageSelectors) {
+        const img = doc.querySelector(selector);
+        if (img) {
+          const src = img.getAttribute('data-src') || 
+                     img.getAttribute('data-lazy-src') || 
+                     img.getAttribute('srcset')?.split(',')[0]?.split(' ')[0] ||
+                     img.getAttribute('src');
+          
+          if (src && !src.includes('noimage') && !src.includes('blank.gif')) {
+            featuredImage = src;
+            break;
+          }
+        }
+      }
+    }
 
     pageTitle = pageTitle || CONFIG.defaultTitle;
     featuredImage = featuredImage || CONFIG.defaultImage;
