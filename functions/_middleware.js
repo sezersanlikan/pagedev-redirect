@@ -35,131 +35,14 @@ export async function onRequest({ request, next }) {
       return next();
     }
 
-    const titleSelectors = [
-        'h1.post-title',
-        'article .post-header h1.post-title',
-        'h1.entry-title',
-        '.post-title',
-        '.entry-header h1',
-        'h1.title',
-        '.article-title',
-        'g1-mega',
-        'h1.single_post_title_main',
-        '.wpb_wrapper h1',
-        '.post-header h1',
-        '.entry-title h1'
-    ];
-
-    const imageSelectors = [
-        '.thumb .safirthumb .thumbnail .center img',
-        '#galleryContent .attachment-full',
-        '#galleryContent #image a img',
-        '.center img',
-        '.thumb img',
-        '.safirthumb img',
-        '.thumbnail img',
-        'article img.wp-post-image',
-        '.featured-image img',
-        '.thumbnail .center img',
-        '.post-feature-media-wrapper img',
-        '.entry-content img:first-of-type',
-        '.g1-frame img',
-        '.g1-frame-inner img',
-        '.image-post-thumb img',
-        '.wpb_wrapper img:first-of-type',
-        'img.attachment-full',
-        'img.size-full',
-        'img.wp-post-image'
-    ];
-
     let pageTitle = '';
     let featuredImage = '';
 
     const rewriter = new HTMLRewriter()
-      .on('h1', {
-        text(text) {
-          if (pageTitle) return;
-          
-          const element = text.element;
-          const className = element.getAttribute('class') || '';
-          
-          for (const selector of titleSelectors) {
-            if (selector.includes(className) || selector.includes('h1')) {
-              pageTitle = text.text.trim();
-              break;
-            }
-          }
-        }
-      })
-      .on('img', {
-        element(element) {
-          if (featuredImage) {
-            console.log('Featured image zaten ayarlı:', featuredImage);
-            return;
-          }
-          
-          const src = element.getAttribute('data-src') || 
-                     element.getAttribute('data-lazy-src') || 
-                     element.getAttribute('data-original') || 
-                     element.getAttribute('src');
-          
-          console.log('Bulunan img src:', src);
-          
-          if (!src || 
-              src.includes('noimage.svg') ||
-              src.includes('data:image') || 
-              src.includes('blank.gif')) {
-            console.log('Geçersiz src, atlanıyor');
-            return;
-          }
-
-          for (const selector of imageSelectors) {
-            try {
-              // Selector'u parçalara ayır ve her birini kontrol et
-              const parts = selector.split(' ');
-              let isMatch = true;
-              let currentElement = element;
-
-              for (let i = parts.length - 1; i >= 0; i--) {
-                const part = parts[i];
-                if (!currentElement) {
-                  isMatch = false;
-                  break;
-                }
-
-                const elementClass = currentElement.getAttribute('class') || '';
-                const elementTag = currentElement.tagName?.toLowerCase() || '';
-
-                if (part.startsWith('.') && !elementClass.includes(part.slice(1))) {
-                  isMatch = false;
-                  break;
-                }
-
-                if (!part.startsWith('.') && elementTag !== part) {
-                  isMatch = false;
-                  break;
-                }
-
-                currentElement = currentElement.parentElement;
-              }
-
-              if (isMatch) {
-                featuredImage = src;
-                console.log('Featured image img\'den ayarlandı:', featuredImage);
-              }
-            } catch (error) {
-              continue;
-            }
-
-          }
-        }
-      })
       .on('meta[property="og:image"]', {
         element(element) {
-          console.log('OG Image meta tag bulundu');
           if (!featuredImage) {
             const content = element.getAttribute('content');
-            console.log('OG Image content:', content);
             if (content && !content.includes('noimage') && !content.includes('blank.gif')) {
               featuredImage = content;
               console.log('Featured image OG\'dan ayarlandı:', featuredImage);
@@ -167,7 +50,30 @@ export async function onRequest({ request, next }) {
           }
         }
       })
-      .on('title', {
+      .on('img', {
+        element(element) {
+          if (featuredImage) return;
+          
+          const src = element.getAttribute('data-src') || 
+                     element.getAttribute('data-lazy-src') || 
+                     element.getAttribute('data-original') || 
+                     element.getAttribute('src');
+          
+          if (!src || 
+              src.includes('noimage.svg') ||
+              src.includes('data:image') || 
+              src.includes('blank.gif')) {
+            return;
+          }
+
+          // İlk geçerli resmi al
+          if (!featuredImage) {
+            featuredImage = src;
+            console.log('Featured image ilk resimden ayarlandı:', featuredImage);
+          }
+        }
+      })
+      .on('h1', {
         text(text) {
           if (!pageTitle) {
             pageTitle = text.text.trim();
@@ -175,12 +81,17 @@ export async function onRequest({ request, next }) {
         }
       });
 
-    const transformedHtml = await rewriter.transform(wpResponse).text();
-    console.log('Transform sonrası featured image:', featuredImage);
+    const transformedResponse = await rewriter.transform(wpResponse);
+    const transformedHtml = await transformedResponse.text();
 
-    // HTML içinde og:image meta tag'ini manuel kontrol et
-    const ogImageMatch = transformedHtml.match(/<meta[^>]*property="og:image"[^>]*content="([^"]*)"[^>]*>/);
-    console.log('Manuel og:image kontrolü:', ogImageMatch?.[1]);
+    // Eğer hala featured image bulunamadıysa, manuel olarak ara
+    if (!featuredImage) {
+      const imgMatch = transformedHtml.match(/<img[^>]+src="([^"]+)"[^>]*>/);
+      if (imgMatch && imgMatch[1]) {
+        featuredImage = imgMatch[1];
+        console.log('Featured image manuel olarak bulundu:', featuredImage);
+      }
+    }
 
     pageTitle = pageTitle || CONFIG.defaultTitle;
     featuredImage = featuredImage || CONFIG.defaultImage;
@@ -190,17 +101,14 @@ export async function onRequest({ request, next }) {
     const response = await next();
     const responseHtml = await response.text();
 
-    // Meta tag'lerini kontrol et
+    // Meta tag'lerini güncelle
     const updatedHtml = responseHtml
-      .replace(/<meta[^>]*property="og:image"[^>]*>/, (match) => {
-        console.log('Değiştirilecek og:image tag:', match);
-        const newTag = `<meta property="og:image" content="${featuredImage}">`;
-        console.log('Yeni og:image tag:', newTag);
-        return newTag;
-      })
-      .replace(/<title>[^<]*<\/title>/, `<title>${pageTitle}</title>`)
       .replace(
-        /<meta[^>]*property="og:title"[^>]*>/,
+        /<meta[^>]*property="og:image"[^>]*>/g,
+        `<meta property="og:image" content="${featuredImage}">`
+      )
+      .replace(
+        /<meta[^>]*property="og:title"[^>]*>/g,
         `<meta property="og:title" content="${pageTitle}">`
       )
       .replace(
