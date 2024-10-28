@@ -1,42 +1,23 @@
 export async function onRequest({ request, next }) {
   try {
+    const url = new URL(request.url);
+    const path = url.pathname;
+    const queryString = url.search;
+    const targetUrl = `https://www.sabancesur.com${path}${queryString}`;
+
+    const wpResponse = await fetch(targetUrl);
+    const wpHtml = await wpResponse.text();
+    const parser = new DOMParser();
+    const wpDoc = parser.parseFromString(wpHtml, 'text/html');
+
+    const pageTitle = wpDoc.querySelector('article .post-header h1.post-title')?.textContent.trim() || 'Saban Cesur';
+    const featuredImage = wpDoc.querySelector('.featured-image img')?.src || 'https://www.sabancesur.com/wp-content/uploads/IMG_4431-752x440-1.jpeg';
+    const pageContent = wpDoc.querySelector('article .entry-content')?.textContent.trim() || 'Saban Cesur';
+    const pageDescription = pageContent.substring(0, 160);
+
     const response = await next();
     const html = await response.text();
-    const url = new URL(request.url);
 
-    let pageTitle = '';
-    let pageDescription = '';
-    let pageImage = '';
-
-    const doc = new HTMLRewriter()
-      .on('#page-title', {
-        text(text) {
-          pageTitle += text.text;
-        }
-      })
-      .on('#featured-image', {
-        element(element) {
-          const src = element.getAttribute('src');
-          if (src) pageImage = src;
-        }
-      })
-      .on('#page-content', {
-        text(text) {
-          if (pageDescription.length < 160) {
-            pageDescription += text.text;
-          }
-        }
-      })
-      .transform(new Response(html));
-
-    await doc.text();
-
-    // Varsayılan değerler
-    pageTitle = pageTitle || 'Saban Cesur';
-    pageDescription = pageDescription.substring(0, 160) || "Saban Cesur";
-    pageImage = pageImage || 'https://www.sabancesur.com/wp-content/uploads/IMG_4431-752x440-1.jpeg';
-
-    // Meta etiketlerini güncelle
     const updatedHtml = html
       .replace(
         /<meta property="og:title"[^>]*>/,
@@ -48,7 +29,7 @@ export async function onRequest({ request, next }) {
       )
       .replace(
         /<meta property="og:image"[^>]*>/,
-        `<meta property="og:image" content="${pageImage}">`
+        `<meta property="og:image" content="${featuredImage}">`
       )
       .replace(
         /<meta property="og:url"[^>]*>/,
