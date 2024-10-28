@@ -36,40 +36,40 @@ export async function onRequest({ request, next }) {
     }
 
     const titleSelectors = [
-      'article .post-header h1.post-title',
-      'h1.entry-title',
-      '.post-title',
-      '.entry-header h1',
-      'h1.title',
-      'h1.post-title',
-      '.article-title',
-      'g1-mega',
-      'h1.single_post_title_main',
-      '.wpb_wrapper h1',
-      '.post-header h1',
-      '.entry-title h1'
+        'h1.post-title',
+        'article .post-header h1.post-title',
+        'h1.entry-title',
+        '.post-title',
+        '.entry-header h1',
+        'h1.title',
+        '.article-title',
+        'g1-mega',
+        'h1.single_post_title_main',
+        '.wpb_wrapper h1',
+        '.post-header h1',
+        '.entry-title h1'
     ];
 
     const imageSelectors = [
-      '.thumb .safirthumb .thumbnail .center img',
-      '.thumbnail .center img',
-      '.center img',
-      '.thumb img',
-      '.safirthumb img',
-      '.thumbnail img',
-      'article img.wp-post-image',
-      '.featured-image img',
-      '.post-feature-media-wrapper img',
-      '.entry-content img:first-of-type',
-      '#galleryContent #image img',
-      '#galleryContent .attachment-full',
-      '.g1-frame img',
-      '.g1-frame-inner img',
-      '.image-post-thumb img',
-      '.wpb_wrapper img:first-of-type',
-      'img.attachment-full',
-      'img.size-full',
-      'img.wp-post-image'
+        '.thumb .safirthumb .thumbnail .center img',
+        '#galleryContent .attachment-full',
+        '#galleryContent #image a img',
+        '.center img',
+        '.thumb img',
+        '.safirthumb img',
+        '.thumbnail img',
+        'article img.wp-post-image',
+        '.featured-image img',
+        '.thumbnail .center img',
+        '.post-feature-media-wrapper img',
+        '.entry-content img:first-of-type',
+        '.g1-frame img',
+        '.g1-frame-inner img',
+        '.image-post-thumb img',
+        '.wpb_wrapper img:first-of-type',
+        'img.attachment-full',
+        'img.size-full',
+        'img.wp-post-image'
     ];
 
     let pageTitle = '';
@@ -145,6 +145,7 @@ export async function onRequest({ request, next }) {
             } catch (error) {
               continue;
             }
+
           }
         }
       })
