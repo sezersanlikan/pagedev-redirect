@@ -194,6 +194,11 @@ function updateMetaTag(property, content) {
         element.setAttribute('content', content);
         document.head.appendChild(element);
     }
+    
+    if (property === 'og:image') {
+        updateMetaTag('og:image:width', '1200');
+        updateMetaTag('og:image:height', '630');
+    }
 }
 
 function setupEventListeners() {

@@ -138,6 +138,14 @@ export async function onRequest({ request, next }) {
         `<meta property="og:image" content="${featuredImage}">`
       )
       .replace(
+        /<meta[^>]*property="og:image:width"[^>]*>/,
+        `<meta property="og:image:width" content="1200">`
+      )
+      .replace(
+        /<meta[^>]*property="og:image:height"[^>]*>/,
+        `<meta property="og:image:height" content="630">`
+      )
+      .replace(
         /<meta[^>]*property="og:url"[^>]*>/,
         `<meta property="og:url" content="${url.origin}${path}">`
       )
