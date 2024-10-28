@@ -1,4 +1,5 @@
 import { CONFIG } from '../config.js';
+import { HTMLRewriter } from 'https://unpkg.com/@cloudflare/wrangler@1.0.0/dist/html-rewriter.js';
 
 export async function onRequest({ request, next }) {
   try {
@@ -71,18 +72,71 @@ export async function onRequest({ request, next }) {
     let pageTitle = '';
     let featuredImage = '';
 
-    class ElementHandler {
-      constructor(selectors, callback) {
-        this.selectors = selectors;
-        this.callback = callback;
-        this.found = false;
-      }
+    const rewriter = new HTMLRewriter()
+      .on('h1', {
+        element(element) {
+          if (pageTitle) return;
+          
+          const classes = element.getAttribute('class') || '';
+          const parentClasses = element.getAttribute('parent-classes') || '';
+          
+          // title seçicilerini kontrol et
+          for (const selector of titleSelectors) {
+            if (selector.includes(classes) || 
+                selector.includes(element.tagName) || 
+                selector.includes(parentClasses)) {
+              element.onText(text => {
+                if (!pageTitle) pageTitle = text.text.trim();
+              });
+              break;
+            }
+          }
+        }
+      })
+      .on('img', {
+        element(element) {
+          if (featuredImage) return;
 
-      element(element) {
-        if (this.found) return;
-        this.callback(element);
-      }
-    }
+          const classes = element.getAttribute('class') || '';
+          const parentClasses = element.getAttribute('parent-classes') || '';
+          
+          // image seçicilerini kontrol et
+          for (const selector of imageSelectors) {
+            if (selector.includes(classes) || 
+                selector.includes('img') || 
+                selector.includes(parentClasses)) {
+              
+              const src = element.getAttribute('src') || element.getAttribute('data-src');
+              const srcset = element.getAttribute('srcset');
+
+              if (src && 
+                  !src.includes('data:image') && 
+                  !src.includes('blank.gif') &&
+                  (src.includes('.jpg') || 
+                   src.includes('.jpeg') || 
+                   src.includes('.png') || 
+                   src.includes('.webp'))) {
+                
+                if (srcset) {
+                  const sources = srcset.split(',')
+                    .map(s => {
+                      const [url, width] = s.trim().split(' ');
+                      return { url, width: parseInt(width) || 0 };
+                    })
+                    .sort((a, b) => b.width - a.width);
+                  
+                  featuredImage = sources[0]?.url || src;
+                } else {
+                  featuredImage = src;
+                }
+              }
+              break;
+            }
+          }
+        }
+      });
+
+    const transformedResponse = await rewriter.transform(wpResponse).text();
 
     pageTitle = pageTitle || CONFIG.defaultTitle;
     featuredImage = featuredImage || CONFIG.defaultImage;
