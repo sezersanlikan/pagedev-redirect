@@ -38,6 +38,40 @@ export async function onRequest({ request, next }) {
     let pageTitle = '';
     let featuredImage = '';
 
+    const titleSelectors = [
+      'article .post-header h1.post-title',
+      'h1.entry-title',
+      '.post-title',
+      '.entry-header h1',
+      'h1.title',
+      'h1.post-title',
+      '.article-title',
+      'g1-mega',
+      'h1.single_post_title_main',
+      '.wpb_wrapper h1',
+      '.post-header h1',
+      '.entry-title h1'
+    ];
+
+    const imageSelectors = [
+      '.thumb .safirthumb .thumbnail .center img',
+      '#galleryContent #image img',
+      '#galleryContent .attachment-full',
+      '.featured-image img',
+      '.thumbnail img',
+      '.post-feature-media-wrapper img',
+      '.g1-frame img',
+      '.image-post-thumb img',
+      'article img.wp-post-image',
+      '.entry-content img:first-of-type',
+      '.center img',
+      '.g1-frame-inner img',
+      '.wpb_wrapper img:first-of-type',
+      'img.attachment-full',
+      'img.size-full',
+      'img.wp-post-image'
+    ];
+
     const rewriter = new HTMLRewriter()
       .on('meta[property="og:image"]', {
         element(element) {
@@ -49,64 +83,59 @@ export async function onRequest({ request, next }) {
             }
           }
         }
-      })
-      .on('img', {
+      });
+
+    // Title selector'ları için
+    titleSelectors.forEach(selector => {
+      rewriter.on(selector, {
+        text(text) {
+          if (!pageTitle) {
+            pageTitle = text.text.trim();
+            console.log('Title bulundu:', pageTitle);
+          }
+        }
+      });
+    });
+
+    // Image selector'ları için
+    imageSelectors.forEach(selector => {
+      rewriter.on(selector, {
         element(element) {
           if (featuredImage) return;
-          
+
           const src = element.getAttribute('data-src') || 
                      element.getAttribute('data-lazy-src') || 
                      element.getAttribute('data-original') || 
                      element.getAttribute('src');
-          
-          if (!src || 
-              src.includes('noimage.svg') ||
-              src.includes('data:image') || 
-              src.includes('blank.gif')) {
-            return;
-          }
 
-          // İlk geçerli resmi al
-          if (!featuredImage) {
+          if (src && !src.includes('noimage') && !src.includes('blank.gif') && !src.includes('data:image')) {
             featuredImage = src;
-            console.log('Featured image ilk resimden ayarlandı:', featuredImage);
-          }
-        }
-      })
-      .on('h1', {
-        text(text) {
-          if (!pageTitle) {
-            pageTitle = text.text.trim();
+            console.log('Featured image selector\'dan bulundu:', featuredImage);
           }
         }
       });
+    });
 
     const transformedResponse = await rewriter.transform(wpResponse);
     const transformedHtml = await transformedResponse.text();
 
-    // Eğer hala featured image bulunamadıysa, manuel olarak ara
-    if (!featuredImage) {
-      const imgMatch = transformedHtml.match(/<img[^>]+src="([^"]+)"[^>]*>/);
-      if (imgMatch && imgMatch[1]) {
-        featuredImage = imgMatch[1];
-        console.log('Featured image manuel olarak bulundu:', featuredImage);
-      }
-    }
-
+    // Fallback değerleri
     pageTitle = pageTitle || CONFIG.defaultTitle;
     featuredImage = featuredImage || CONFIG.defaultImage;
-    
-    console.log('Final featured image:', featuredImage);
+
+    console.log('Final değerler:', {
+      title: pageTitle,
+      image: featuredImage
+    });
 
     const response = await next();
     const responseHtml = await response.text();
 
-    // Önce eski meta tag'leri temizle
+    // Meta tag'leri güncelle
     let updatedHtml = responseHtml
       .replace(/<meta[^>]*property="og:[^"]*"[^>]*>/g, '')
       .replace(/<meta[^>]*name="description"[^>]*>/g, '');
 
-    // Sonra head tag'inin içine yeni meta tag'leri ekle
     updatedHtml = updatedHtml.replace(
       /<head>/i,
       `<head>
@@ -121,20 +150,13 @@ export async function onRequest({ request, next }) {
         <meta name="description" content="${pageTitle}" />`
     );
 
-    // Featured image'ı güncelle
+    // Featured image güncelle
     const finalHtml = updatedHtml.replace(
       /<img[^>]*id="featured-image"[^>]*>/,
       `<a href="${CONFIG.baseUrl}${path}${url.search}">
         <img id="featured-image" src="${featuredImage}" alt="${pageTitle}">
       </a>`
     );
-
-    // Debug için meta tag'leri kontrol et
-    console.log('Meta tags ekleniyor:', {
-      image: featuredImage,
-      title: pageTitle,
-      url: `${url.origin}${path}`
-    });
 
     return new Response(finalHtml, {
       headers: {
