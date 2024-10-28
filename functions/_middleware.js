@@ -71,27 +71,22 @@ export async function onRequest({ request, next }) {
     let pageTitle = '';
     let featuredImage = '';
 
-    const titleRewriter = new HTMLRewriter()
+    const rewriter = new HTMLRewriter()
       .on('h1', {
-        element(element) {
+        text(text) {
           if (pageTitle) return;
           
+          const element = text.element;
           const className = element.getAttribute('class') || '';
           
           for (const selector of titleSelectors) {
             if (selector.includes(className) || selector.includes('h1')) {
-              element.onText(text => {
-                if (!pageTitle) {
-                  pageTitle = text.text.trim();
-                }
-              });
+              pageTitle = text.text.trim();
               break;
             }
           }
         }
-      });
-
-    const imageRewriter = new HTMLRewriter()
+      })
       .on('img', {
         element(element) {
           if (featuredImage) return;
@@ -127,33 +122,24 @@ export async function onRequest({ request, next }) {
             }
           }
         }
+      })
+      .on('meta[property="og:image"]', {
+        element(element) {
+          if (!featuredImage) {
+            featuredImage = element.getAttribute('content');
+          }
+        }
+      })
+      .on('title', {
+        text(text) {
+          if (!pageTitle) {
+            pageTitle = text.text.trim();
+          }
+        }
       });
 
-    const clonedResponse1 = wpResponse.clone();
-    const clonedResponse2 = wpResponse.clone();
-
-    await titleRewriter.transform(clonedResponse1).text();
-    await imageRewriter.transform(clonedResponse2).text();
-
-    if (!pageTitle || !featuredImage) {
-      const metaRewriter = new HTMLRewriter()
-        .on('meta[property="og:image"]', {
-          element(element) {
-            if (!featuredImage) {
-              featuredImage = element.getAttribute('content');
-            }
-          }
-        })
-        .on('title', {
-          text(text) {
-            if (!pageTitle) {
-              pageTitle = text.text.trim();
-            }
-          }
-        });
-        
-      await metaRewriter.transform(wpResponse).text();
-    }
+    // HTML'i tek seferde transform et
+    await rewriter.transform(wpResponse).text();
 
     pageTitle = pageTitle || CONFIG.defaultTitle;
     featuredImage = featuredImage || CONFIG.defaultImage;
