@@ -93,9 +93,9 @@ function updateMetadata(doc) {
 }
 
 function updateContent(doc) {
-    const pageTitle = doc.querySelector('article .post-header h1.post-title')?.textContent.trim() || '';
-    const featuredImage = doc.querySelector('.featured-image img')?.src || '';
-    const pageContent = doc.querySelector('article .entry-content')?.innerHTML || '';
+    const pageTitle = doc.querySelector('#page-title')?.textContent.trim() || '';
+    const featuredImage = doc.querySelector('#featured-image')?.src || '';
+    const pageContent = doc.querySelector('#page-content')?.innerHTML || '';
 
     const pageTitleElement = document.getElementById('page-title');
     pageTitleElement.textContent = pageTitle;
@@ -109,14 +109,22 @@ function updateContent(doc) {
 
     document.getElementById('page-content').innerHTML = pageContent;
 
-    const ogImageElement = document.querySelector('meta[property="og:image"]');
-    if (ogImageElement) {
-        ogImageElement.content = featuredImage;
+    // Meta etiketlerini güncelle
+    updateMetaTag('og:image', featuredImage);
+    updateMetaTag('og:title', pageTitle);
+    updateMetaTag('og:description', pageContent.substring(0, 160));
+}
+
+// Yardımcı fonksiyon
+function updateMetaTag(property, content) {
+    let element = document.querySelector(`meta[property="${property}"]`);
+    if (element) {
+        element.content = content;
     } else {
-        const newOgImage = document.createElement('meta');
-        newOgImage.setAttribute('property', 'og:image');
-        newOgImage.setAttribute('content', featuredImage);
-        document.head.appendChild(newOgImage);
+        element = document.createElement('meta');
+        element.setAttribute('property', property);
+        element.setAttribute('content', content);
+        document.head.appendChild(element);
     }
 }
 
