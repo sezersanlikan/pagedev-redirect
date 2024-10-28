@@ -57,29 +57,25 @@ export async function onRequest({ request, next }) {
     ];
 
     const imageSelectors = [
-      '.thumb .safirthumb .thumbnail .center img',
-      '.thumbnail .center img',
-      '.center img',
-      '.thumb img',
-      '.safirthumb img',
-      '.thumbnail img',
-      'article img.wp-post-image',
-      '.featured-image img',
-      '.post-feature-media-wrapper img',
-      '.entry-content img:first-of-type',
-      '#galleryContent #image img',
-      '#galleryContent .attachment-full',
-      '.g1-frame img',
-      '.g1-frame-inner img',
-      '.image-post-thumb img',
-      '.wpb_wrapper img:first-of-type',
-      'img.attachment-full',
-      'img.size-full',
-      'img.wp-post-image',
-      '.gallery-image img',
-      '.gallery img',
-      '.wp-block-gallery img',
-      'article .entry-content img'
+        '.thumb .safirthumb .thumbnail .center img',
+        '#galleryContent .attachment-full',
+        '#galleryContent #image a img',
+        '.center img',
+        '.thumb img',
+        '.safirthumb img',
+        '.thumbnail img',
+        'article img.wp-post-image',
+        '.featured-image img',
+        '.thumbnail .center img',
+        '.post-feature-media-wrapper img',
+        '.entry-content img:first-of-type',
+        '.g1-frame img',
+        '.g1-frame-inner img',
+        '.image-post-thumb img',
+        '.wpb_wrapper img:first-of-type',
+        'img.attachment-full',
+        'img.size-full',
+        'img.wp-post-image'
     ];
 
     let featuredImage = '';
