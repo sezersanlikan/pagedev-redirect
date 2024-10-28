@@ -95,7 +95,6 @@ export async function onRequest({ request, next }) {
         element(element) {
           if (featuredImage) return;
           
-          const className = element.getAttribute('class') || '';
           const src = element.getAttribute('data-src') || 
                      element.getAttribute('data-lazy-src') || 
                      element.getAttribute('srcset')?.split(',')[0]?.split(' ')[0] ||
@@ -109,11 +108,8 @@ export async function onRequest({ request, next }) {
           }
 
           const isGalleryPath = url.pathname.split('/').filter(Boolean).length > 1;
-          if (isGalleryPath && element.getAttribute('class')?.includes('attachment-full')) {
-            featuredImage = src;
-            return;
-          }
-
+          
+          // Normal sayfalar için image selector kontrolü
           for (const selector of imageSelectors) {
             try {
               const parts = selector.split(' ');
@@ -145,18 +141,23 @@ export async function onRequest({ request, next }) {
 
               if (isMatch) {
                 featuredImage = src;
-                break;
+                return;
               }
             } catch (error) {
               continue;
             }
           }
+
+          // Eğer hala featuredImage bulunamadıysa ve galeri sayfası ise
+          if (!featuredImage && isGalleryPath && element.getAttribute('class')?.includes('attachment-full')) {
+            featuredImage = src;
+          }
         }
       })
-      .on('#galleryContent #image a', {
+      .on('meta[property="og:title"]', {
         element(element) {
           if (!pageTitle) {
-            pageTitle = element.getAttribute('title')?.trim();
+            pageTitle = element.getAttribute('content')?.trim();
           }
         }
       })

@@ -41,7 +41,6 @@ async function loadContent() {
         
         const isGalleryPath = path.split('/').filter(Boolean).length > 1;
         if (isGalleryPath) {
-            // Galeri başlığını al
             const galleryTitle = doc.querySelector('h1.entry-title, .post-title, #galleryContent #image a')?.textContent?.trim() ||
                                doc.querySelector('#galleryContent #image a')?.getAttribute('title')?.trim();
             
@@ -52,7 +51,6 @@ async function loadContent() {
                 pageTitleElement.dataset.href = targetUrl;
             }
 
-            // Galeri resmini al
             const currentImage = doc.querySelector('#galleryContent #image img.attachment-full') || 
                                doc.querySelector('#galleryContent #image a img');
             
